@@ -85,6 +85,9 @@
   .row .top time { font-size: 12px; font-weight: 600; color: var(--muted); flex-shrink: 0; }
   .row .last { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row .uname { font-size: 13px; color: var(--muted); }
+  .badge { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: var(--lime); color: #0B0B12; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .row.unread .last { color: var(--text); font-weight: 600; }
+  .row.unread .top time { color: var(--lime); }
   .empty { padding: 60px 32px; text-align: center; color: var(--muted); font-size: 15px; line-height: 1.5; }
   .empty b { display: block; font-family: 'Sora', sans-serif; font-size: 20px; color: var(--text); margin-bottom: 8px; }
   .fab { position: absolute; right: 20px; bottom: 28px; height: 54px; padding: 0 20px 0 16px; border: 0; border-radius: 27px; background: var(--lime); color: #0B0B12; display: flex; align-items: center; gap: 8px; font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 28px rgba(200,255,61,0.22); }
@@ -344,15 +347,19 @@
 
     socket.on('message', (m) => {
       const c = convs.find((x) => x.id === m.conversation_id);
+      const fromMe = m.sender_id === myId();
+      const viewing = openConvObj && openConvObj.id === m.conversation_id && current === 'conv';
       if (!c) { loadList(); }
       else {
         c.last_text = m.text.slice(0, 80);
         c.last_message_at = new Date(m.time).toISOString();
+        if (!fromMe && !viewing) c.unread = (c.unread || 0) + 1;
         if (current === 'list') renderList();
       }
-      if (openConvObj && openConvObj.id === m.conversation_id && current === 'conv') {
+      if (viewing) {
         addMessage(m);
         scrollDown();
+        if (!fromMe) markRead(m.conversation_id);
       }
     });
 
@@ -408,9 +415,23 @@
         username: p.username || '',
         last_text: r.conversations.last_text || '',
         last_message_at: r.conversations.last_message_at,
+        unread: 0,
       };
     });
+    // Unread counts (server se)
+    const ur = await sb.rpc('unread_counts');
+    const um = {};
+    (ur.data || []).forEach((r) => { um[r.conversation_id] = Number(r.unread); });
+    convs.forEach((c) => {
+      const viewing = openConvObj && openConvObj.id === c.id && current === 'conv';
+      c.unread = viewing ? 0 : (um[c.id] || 0);
+    });
     if (current === 'list') renderList();
+  }
+
+  // Chat padh li = server ko batao
+  function markRead(cid) {
+    sb.rpc('mark_read', { cid }).then(() => {}, () => {});
   }
 
   function renderList() {
@@ -429,7 +450,7 @@
     }
     list.forEach((c) => {
       const row = document.createElement('button');
-      row.className = 'row';
+      row.className = 'row' + (c.unread ? ' unread' : '');
       row.type = 'button';
       const av = document.createElement('div'); av.className = 'avatar'; paintAvatar(av, c.title);
       const mid = document.createElement('div'); mid.className = 'mid';
@@ -437,8 +458,17 @@
       const nm = document.createElement('b'); nm.textContent = c.title;
       const tm = document.createElement('time'); tm.textContent = fmtTime(c.last_message_at);
       top.appendChild(nm); top.appendChild(tm);
+      const lastRow = document.createElement('div');
+      lastRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px';
       const last = document.createElement('div'); last.className = 'last'; last.textContent = c.last_text;
-      mid.appendChild(top); mid.appendChild(last);
+      lastRow.appendChild(last);
+      if (c.unread) {
+        const b = document.createElement('span');
+        b.className = 'badge';
+        b.textContent = c.unread > 99 ? '99+' : String(c.unread);
+        lastRow.appendChild(b);
+      }
+      mid.appendChild(top); mid.appendChild(lastRow);
       row.appendChild(av); row.appendChild(mid);
       row.onclick = () => openConv(c);
       box.appendChild(row);
@@ -452,6 +482,8 @@
   async function openConv(c) {
     openConvObj = c;
     seen = new Set();
+    c.unread = 0;
+    markRead(c.id);
     show('conv');
     $('convName').textContent = c.title;
     $('convUser').textContent = c.username ? '@' + c.username : '';
