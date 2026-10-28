@@ -25,7 +25,7 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font-family: 'DM Sans', system-ui, sans-serif; }
-  .app { max-width: 480px; height: 100vh; height: 100dvh; margin: 0 auto; display: flex; flex-direction: column; }
+  .app { max-width: 480px; height: 100vh; height: 100dvh; margin: 0 auto; display: flex; flex-direction: column; position: relative; }
   .hidden { display: none !important; }
 
   .brand { display: flex; align-items: center; gap: 10px; }
@@ -51,50 +51,71 @@
     font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
   }
   .error { color: var(--danger); font-size: 14px; font-weight: 600; min-height: 20px; margin: 0; }
-  .note { color: var(--lime); font-size: 14px; font-weight: 600; margin: 0; }
+  .hint { color: var(--muted); font-size: 13px; margin: -6px 0 0 6px; }
 
-  /* ---------- Auth ---------- */
-  #auth, #profile { flex: 1; padding: 48px 24px 28px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
-  #auth h1 { font-family: 'Sora', sans-serif; font-size: 34px; line-height: 1.1; letter-spacing: -1.4px; margin: 28px 0 0; }
+  .avatar { width: 48px; height: 48px; border-radius: 50%; border: 0; display: flex; align-items: center; justify-content: center; font-family: 'Sora', sans-serif; font-weight: 700; font-size: 18px; color: #0B0B12; flex-shrink: 0; }
+  button.avatar { cursor: pointer; width: 44px; height: 44px; }
+  .bigavatar { width: 96px; height: 96px; font-size: 38px; align-self: center; margin: 8px 0; }
+
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 16px 14px 10px 10px; }
+  .topbar .back { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--card); color: var(--text); font-size: 20px; cursor: pointer; flex-shrink: 0; }
+  .topbar .title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .topbar .title b { font-family: 'Sora', sans-serif; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar .title small { font-size: 12px; color: var(--muted); }
+
+  /* ---------- Auth / Profile ---------- */
+  #auth, #profile { flex: 1; padding: 44px 24px 28px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+  #auth h1 { font-family: 'Sora', sans-serif; font-size: 34px; line-height: 1.1; letter-spacing: -1.4px; margin: 24px 0 0; }
   #auth p.sub { color: #B4B5CC; font-size: 16px; margin: 0 0 6px; }
   .tabs { display: flex; background: var(--card); border-radius: 28px; padding: 4px; }
   .tabs button { flex: 1; height: 44px; border: 0; border-radius: 24px; background: transparent; color: var(--muted); font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
   .tabs button.on { background: var(--violet); color: #fff; }
 
+  /* ---------- Chats list ---------- */
+  #list { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #list header { padding: 18px 20px 10px; display: flex; align-items: center; justify-content: space-between; }
+  #list header .brand b { font-size: 24px; }
+  #chatList { flex: 1; overflow-y: auto; padding-bottom: 90px; }
+  .row { display: flex; align-items: center; gap: 14px; padding: 10px 20px; cursor: pointer; width: 100%; border: 0; background: transparent; color: inherit; text-align: left; font-family: inherit; }
+  .row:active, .row:hover { background: #12121C; }
+  .row .avatar { border-radius: 20px; width: 56px; height: 56px; }
+  .row .mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .row .top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .row .top b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .top time { font-size: 12px; font-weight: 600; color: var(--muted); flex-shrink: 0; }
+  .row .last { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .uname { font-size: 13px; color: var(--muted); }
+  .empty { padding: 60px 32px; text-align: center; color: var(--muted); font-size: 15px; line-height: 1.5; }
+  .empty b { display: block; font-family: 'Sora', sans-serif; font-size: 20px; color: var(--text); margin-bottom: 8px; }
+  .fab { position: absolute; right: 20px; bottom: 28px; height: 54px; padding: 0 20px 0 16px; border: 0; border-radius: 27px; background: var(--lime); color: #0B0B12; display: flex; align-items: center; gap: 8px; font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 28px rgba(200,255,61,0.22); }
+
   /* ---------- Chat ---------- */
-  #chat { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  header { padding: 16px 20px 10px; display: flex; align-items: center; justify-content: space-between; }
-  header .brand b { font-size: 22px; }
-  .online { font-size: 13px; font-weight: 600; color: var(--lime); margin-right: 12px; }
-  .avatar { width: 44px; height: 44px; border-radius: 50%; border: 0; display: flex; align-items: center; justify-content: center; font-family: 'Sora', sans-serif; font-weight: 700; font-size: 17px; color: #0B0B12; cursor: pointer; flex-shrink: 0; }
-  #messages { flex: 1; overflow-y: auto; padding: 8px 16px; display: flex; flex-direction: column; gap: 10px; }
+  #conv { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #messages { flex: 1; overflow-y: auto; padding: 8px 16px; display: flex; flex-direction: column; gap: 8px; }
   .msg { max-width: 78%; padding: 10px 15px 7px; border-radius: 22px 22px 22px 6px; background: var(--card); display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; animation: pop 0.18s ease-out; }
   .msg.mine { align-self: flex-end; background: var(--violet); color: #fff; border-radius: 22px 22px 6px 22px; }
-  .msg .who { font-size: 12px; font-weight: 700; color: var(--lime); }
   .msg .text { font-size: 15px; line-height: 1.4; }
   .msg .time { align-self: flex-end; font-size: 11px; color: var(--muted); }
   .msg.mine .time { color: #E4DCFF; }
   .system { align-self: center; font-size: 12px; font-weight: 600; color: #B4B5CC; background: var(--card); padding: 6px 12px; border-radius: 999px; }
+  .system.bad { color: var(--danger); }
   @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   #typing { height: 20px; padding: 0 20px; font-size: 12px; font-weight: 600; color: var(--lime); }
   form#send { display: flex; gap: 8px; padding: 6px 12px 20px; }
   form#send input { flex: 1; min-width: 0; }
   form#send button { width: 56px; height: 56px; border: 0; border-radius: 50%; background: var(--lime); cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
-  /* ---------- Profile ---------- */
-  .backrow { display: flex; align-items: center; gap: 8px; }
-  .backrow button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--card); color: var(--text); font-size: 20px; cursor: pointer; }
-  .backrow h2 { margin: 0; font-family: 'Sora', sans-serif; font-size: 22px; }
-  .bigavatar { width: 96px; height: 96px; font-size: 38px; align-self: center; margin: 8px 0; cursor: default; }
+  /* ---------- New chat ---------- */
+  #newchat { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #newchat .searchbox { padding: 4px 16px 10px; }
 </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- Loading -->
   <div id="loading" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:600">Loading...</div>
 
-  <!-- Screen 1: Login / Sign up -->
+  <!-- Login / Sign up -->
   <form id="auth" class="hidden">
     <div class="brand">
       <div class="logo">
@@ -104,21 +125,20 @@
     </div>
     <h1>Chat your way.<br>English, हिंदी,<br>or both.</h1>
     <p class="sub">Fast, free and ad-free.</p>
-
     <div class="tabs">
       <button type="button" id="tabLogin" class="on">Log in</button>
       <button type="button" id="tabSignup">Sign up</button>
     </div>
-
     <input id="nameInput" class="hidden" type="text" maxlength="20" placeholder="Your name" aria-label="Your name" autocomplete="nickname">
+    <input id="userInput" class="hidden" type="text" maxlength="20" placeholder="Username (e.g. prayag_01)" aria-label="Username" autocomplete="username" autocapitalize="none" spellcheck="false">
     <input id="emailInput" type="email" placeholder="Email" aria-label="Email" autocomplete="email" required>
     <input id="passInput" type="password" minlength="6" placeholder="Password (min 6 characters)" aria-label="Password" autocomplete="current-password" required>
     <p class="error" id="authError"></p>
     <button class="main" id="authBtn" type="submit">Log in</button>
   </form>
 
-  <!-- Screen 2: Chat -->
-  <div id="chat" class="hidden">
+  <!-- Chats list -->
+  <div id="list" class="hidden">
     <header>
       <div class="brand">
         <div class="logo" style="width:36px;height:36px;border-radius:12px">
@@ -126,11 +146,22 @@
         </div>
         <b>Baatein</b>
       </div>
-      <div style="display:flex;align-items:center">
-        <div class="online" id="online">1 online</div>
-        <button class="avatar" id="meBtn" aria-label="My profile">?</button>
-      </div>
+      <button class="avatar" id="meBtn" aria-label="My profile">?</button>
     </header>
+    <div id="chatList"></div>
+    <button class="fab" id="newBtn" type="button">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B0B12" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      New chat
+    </button>
+  </div>
+
+  <!-- One chat -->
+  <div id="conv" class="hidden">
+    <div class="topbar">
+      <button class="back" id="convBack" type="button" aria-label="Back">&#8592;</button>
+      <div class="avatar" id="convAvatar">?</div>
+      <div class="title"><b id="convName"></b><small id="convUser"></small></div>
+    </div>
     <div id="messages"></div>
     <div id="typing"></div>
     <form id="send" autocomplete="off">
@@ -141,15 +172,31 @@
     </form>
   </div>
 
-  <!-- Screen 3: Profile -->
+  <!-- Find people -->
+  <div id="newchat" class="hidden">
+    <div class="topbar">
+      <button class="back" id="newBack" type="button" aria-label="Back">&#8592;</button>
+      <div class="title"><b>New chat</b><small>Find a friend by username</small></div>
+    </div>
+    <div class="searchbox">
+      <input id="searchInput" type="text" maxlength="20" placeholder="Search username..." aria-label="Search username" autocapitalize="none" autocomplete="off" spellcheck="false">
+    </div>
+    <p class="error" id="searchError" style="padding:0 22px"></p>
+    <div id="results" style="flex:1;overflow-y:auto"></div>
+  </div>
+
+  <!-- Profile -->
   <form id="profile" class="hidden">
-    <div class="backrow">
-      <button type="button" id="backBtn" aria-label="Back">&#8592;</button>
-      <h2 id="profileTitle">Your profile</h2>
+    <div class="topbar" style="padding:0">
+      <button class="back" id="backBtn" type="button" aria-label="Back">&#8592;</button>
+      <div class="title"><b id="profileTitle">Your profile</b></div>
     </div>
     <div class="avatar bigavatar" id="bigAvatar">?</div>
     <label for="pName">Name</label>
     <input id="pName" type="text" maxlength="20" placeholder="Your name" required>
+    <label for="pUser">Username</label>
+    <input id="pUser" type="text" maxlength="20" placeholder="e.g. prayag_01" autocapitalize="none" autocomplete="off" spellcheck="false" required>
+    <p class="hint">3-20 characters: small letters, numbers, _ and . only. Friends find you with this.</p>
     <label for="pBio">About (optional)</label>
     <textarea id="pBio" maxlength="120" placeholder="Hey there! I'm on Baatein."></textarea>
     <p class="error" id="profError"></p>
@@ -172,14 +219,20 @@
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const $ = (id) => document.getElementById(id);
-  const screens = ['loading', 'auth', 'chat', 'profile'];
-  function show(name) { screens.forEach((s) => $(s).classList.toggle('hidden', s !== name)); }
+  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'profile'];
+  let current = 'loading';
+  function show(name) { current = name; screens.forEach((s) => $(s).classList.toggle('hidden', s !== name)); }
 
-  let session = null;
-  let profile = null;
+  let session = null;   // login session
+  let profile = null;   // meri profile
   let socket = null;
   let mode = 'login';
-  let firstProfile = false;
+  let convs = [];       // meri chats
+  let openConvObj = null; // abhi khuli chat
+  let seen = new Set();   // is chat ke dikh chuke message ids
+  const USERNAME_RE = /^[a-z0-9_.]{3,20}$/;
+  const cleanUser = (s) => String(s).toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 20);
+  const myId = () => session && session.user.id;
 
   // ---- Avatar (naam ka pehla akshar + rang) ----
   const COLORS = ['#FFB8D2', '#B6C4FF', '#9FE8D6', '#F2E47A', '#D9C2FF', '#FFC2A0', '#A8E6A1'];
@@ -192,20 +245,29 @@
     el.textContent = (name || '?').trim().charAt(0).toUpperCase() || '?';
     el.style.background = colorFor(name);
   }
+  function fmtTime(ts) {
+    const d = new Date(ts), now = new Date();
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  }
 
-  // ---- Login / Sign up ----
+  // ---------------- Login / Sign up ----------------
   function setMode(m) {
     mode = m;
     $('tabLogin').classList.toggle('on', m === 'login');
     $('tabSignup').classList.toggle('on', m === 'signup');
     $('nameInput').classList.toggle('hidden', m !== 'signup');
+    $('userInput').classList.toggle('hidden', m !== 'signup');
     $('nameInput').required = m === 'signup';
+    $('userInput').required = m === 'signup';
     $('authBtn').textContent = m === 'signup' ? 'Create account' : 'Log in';
     $('passInput').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
     $('authError').textContent = '';
   }
   $('tabLogin').onclick = () => setMode('login');
   $('tabSignup').onclick = () => setMode('signup');
+  $('userInput').addEventListener('input', (e) => { e.target.value = cleanUser(e.target.value); });
+  $('pUser').addEventListener('input', (e) => { e.target.value = cleanUser(e.target.value); });
 
   function friendly(msg) {
     if (/invalid login/i.test(msg)) return 'Email ya password galat hai.';
@@ -224,15 +286,23 @@
     try {
       if (mode === 'signup') {
         const name = $('nameInput').value.trim().slice(0, 20);
+        const username = cleanUser($('userInput').value);
         if (!name) throw new Error('Apna naam daalo.');
+        if (!USERNAME_RE.test(username)) throw new Error('Username 3-20 characters ka ho: small letters, numbers, _ ya .');
         const { data, error } = await sb.auth.signUp({ email, password });
         if (error) throw error;
-        if (!data.session) {
-          throw new Error('Email confirm karna padega. Supabase me "Confirm email" band karo ya inbox check karo.');
-        }
+        if (!data.session) throw new Error('Email confirm karna padega. Supabase me "Confirm email" band karo ya inbox check karo.');
         session = data.session;
-        const { error: pe } = await sb.from('profiles').insert({ id: data.user.id, name });
-        if (pe) throw pe;
+        const { error: pe } = await sb.from('profiles').insert({ id: data.user.id, name, username });
+        if (pe) {
+          if (pe.code === '23505') {
+            // Account ban gaya par username kisi aur ka nikla: profile screen par naya username chunwao
+            profile = null;
+            openProfile(true, { name, username: '' }, 'Ye username pehle se kisi ka hai, dusra chuno.');
+            return;
+          }
+          throw pe;
+        }
       } else {
         const { data, error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -246,125 +316,288 @@
     }
   });
 
-  // ---- Login ke baad: profile dhundo, chat kholo ----
+  // ---- Login ke baad ----
   async function enter() {
-    const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+    const { data, error } = await sb.from('profiles').select('*').eq('id', myId()).maybeSingle();
     if (error) { $('authError').textContent = error.message; show('auth'); return; }
     profile = data;
-    if (!profile) { openProfile(true); return; }
-    openChat();
+    if (!profile || !profile.username) { openProfile(true, profile); return; }
+    startApp();
   }
 
-  // ---- Chat ----
-  function addMessage(m) {
-    const mine = m.uid === (session && session.user.id);
-    const box = document.createElement('div');
-    box.className = 'msg' + (mine ? ' mine' : '');
-    if (!mine) {
-      const who = document.createElement('span');
-      who.className = 'who';
-      who.textContent = m.name;
-      box.appendChild(who);
-    }
-    const text = document.createElement('span');
-    text.className = 'text';
-    text.textContent = m.text; // textContent = safe, koi HTML nahi chalega
-    box.appendChild(text);
-    const time = document.createElement('span');
-    time.className = 'time';
-    time.textContent = new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    box.appendChild(time);
-    $('messages').appendChild(box);
-  }
-  function addSystem(txt) {
-    const el = document.createElement('div');
-    el.className = 'system';
-    el.textContent = txt;
-    $('messages').appendChild(el);
-  }
-  function scrollDown() { $('messages').scrollTop = $('messages').scrollHeight; }
-
-  function openChat() {
-    show('chat');
+  function startApp() {
     paintAvatar($('meBtn'), profile.name);
     connectSocket();
-    $('msgInput').focus();
+    openList();
   }
 
+  // ---------------- Socket (live messages) ----------------
   function connectSocket() {
     if (socket) { socket.disconnect(); socket = null; }
-    $('messages').innerHTML = '';
     // auth ek function hai, taaki reconnect par hamesha taaza token jaye
     socket = io({ auth: (cb) => cb({ token: session && session.access_token }) });
 
     socket.on('connect_error', (err) => {
-      if (err.message === 'login_required') { logout(); }
-      else if (err.message === 'no_profile') { openProfile(true); }
-      // baaki errors par socket khud dobara try karta hai
+      if (err.message === 'login_required') logout();
+      else if (err.message === 'no_profile') openProfile(true, profile);
     });
-    socket.on('history', (rows) => {
-      $('messages').innerHTML = '';
-      rows.forEach(addMessage);
-      scrollDown();
+
+    socket.on('message', (m) => {
+      const c = convs.find((x) => x.id === m.conversation_id);
+      if (!c) { loadList(); }
+      else {
+        c.last_text = m.text.slice(0, 80);
+        c.last_message_at = new Date(m.time).toISOString();
+        if (current === 'list') renderList();
+      }
+      if (openConvObj && openConvObj.id === m.conversation_id && current === 'conv') {
+        addMessage(m);
+        scrollDown();
+      }
     });
-    socket.on('message', (m) => { addMessage(m); scrollDown(); });
-    socket.on('system', (t) => { addSystem(t); scrollDown(); });
-    socket.on('online', (n) => { $('online').textContent = n + ' online'; });
 
     let typingTimer;
-    socket.on('typing', (name) => {
-      $('typing').textContent = name + ' is typing...';
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => { $('typing').textContent = ''; }, 1800);
+    socket.on('typing', (t) => {
+      if (openConvObj && openConvObj.id === t.conversation_id && current === 'conv') {
+        $('typing').textContent = t.name + ' is typing...';
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(() => { $('typing').textContent = ''; }, 1800);
+      }
+    });
+
+    socket.on('send_failed', () => {
+      if (current !== 'conv') return;
+      const el = document.createElement('div');
+      el.className = 'system bad';
+      el.textContent = 'Message nahi gaya. Dobara try karo.';
+      $('messages').appendChild(el);
+      scrollDown();
     });
   }
+
+  // ---------------- Chats list ----------------
+  function openList() {
+    openConvObj = null;
+    show('list');
+    renderList();
+    loadList();
+  }
+
+  async function loadList() {
+    const me = myId();
+    const { data: mine, error } = await sb.from('conversation_members')
+      .select('conversation_id, conversations!inner(id,is_group,name,last_text,last_message_at)')
+      .eq('user_id', me);
+    if (error || !mine) return;
+    const ids = mine.map((r) => r.conversation_id);
+    let others = [];
+    if (ids.length) {
+      const res = await sb.from('conversation_members')
+        .select('conversation_id, profiles(id,name,username)')
+        .in('conversation_id', ids)
+        .neq('user_id', me);
+      others = res.data || [];
+    }
+    convs = mine.map((r) => {
+      const o = others.find((x) => x.conversation_id === r.conversation_id);
+      const p = (o && o.profiles) || {};
+      return {
+        id: r.conversation_id,
+        is_group: r.conversations.is_group,
+        title: r.conversations.is_group ? (r.conversations.name || 'Group') : (p.name || 'Unknown'),
+        username: p.username || '',
+        last_text: r.conversations.last_text || '',
+        last_message_at: r.conversations.last_message_at,
+      };
+    });
+    if (current === 'list') renderList();
+  }
+
+  function renderList() {
+    const box = $('chatList');
+    box.innerHTML = '';
+    const list = convs.filter((c) => c.last_text).sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at));
+    if (!list.length) {
+      const e = document.createElement('div');
+      e.className = 'empty';
+      const b = document.createElement('b');
+      b.textContent = 'No chats yet';
+      e.appendChild(b);
+      e.appendChild(document.createTextNode('Tap "New chat" and find a friend with their username.'));
+      box.appendChild(e);
+      return;
+    }
+    list.forEach((c) => {
+      const row = document.createElement('button');
+      row.className = 'row';
+      row.type = 'button';
+      const av = document.createElement('div'); av.className = 'avatar'; paintAvatar(av, c.title);
+      const mid = document.createElement('div'); mid.className = 'mid';
+      const top = document.createElement('div'); top.className = 'top';
+      const nm = document.createElement('b'); nm.textContent = c.title;
+      const tm = document.createElement('time'); tm.textContent = fmtTime(c.last_message_at);
+      top.appendChild(nm); top.appendChild(tm);
+      const last = document.createElement('div'); last.className = 'last'; last.textContent = c.last_text;
+      mid.appendChild(top); mid.appendChild(last);
+      row.appendChild(av); row.appendChild(mid);
+      row.onclick = () => openConv(c);
+      box.appendChild(row);
+    });
+  }
+
+  $('meBtn').onclick = () => openProfile(false, profile);
+  $('newBtn').onclick = () => openNewChat();
+
+  // ---------------- One chat ----------------
+  async function openConv(c) {
+    openConvObj = c;
+    seen = new Set();
+    show('conv');
+    $('convName').textContent = c.title;
+    $('convUser').textContent = c.username ? '@' + c.username : '';
+    paintAvatar($('convAvatar'), c.title);
+    $('messages').innerHTML = '';
+    $('typing').textContent = '';
+    const { data } = await sb.from('chat_messages')
+      .select('id,sender_id,text,created_at')
+      .eq('conversation_id', c.id)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (!openConvObj || openConvObj.id !== c.id) return;
+    (data || []).reverse().forEach((r) => addMessage({ id: r.id, sender_id: r.sender_id, text: r.text, time: new Date(r.created_at).getTime() }));
+    scrollDown();
+    $('msgInput').focus();
+  }
+
+  function addMessage(m) {
+    if (m.id != null) { if (seen.has(m.id)) return; seen.add(m.id); }
+    const mine = m.sender_id === myId();
+    const box = document.createElement('div');
+    box.className = 'msg' + (mine ? ' mine' : '');
+    const text = document.createElement('span');
+    text.className = 'text';
+    text.textContent = m.text; // textContent = safe, koi HTML nahi chalega
+    const time = document.createElement('span');
+    time.className = 'time';
+    time.textContent = new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    box.appendChild(text); box.appendChild(time);
+    $('messages').appendChild(box);
+  }
+  function scrollDown() { $('messages').scrollTop = $('messages').scrollHeight; }
+
+  $('convBack').onclick = () => openList();
 
   $('send').addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = $('msgInput').value.trim();
-    if (!text || !socket) return;
+    if (!text || !socket || !openConvObj) return;
     const { data } = await sb.auth.getSession(); // taaza token
-    socket.emit('message', { text, token: data.session && data.session.access_token });
+    socket.emit('message', { conversation_id: openConvObj.id, text, token: data.session && data.session.access_token });
     $('msgInput').value = '';
   });
 
   let lastTyping = 0;
   $('msgInput').addEventListener('input', () => {
     const now = Date.now();
-    if (socket && now - lastTyping > 1500) { socket.emit('typing'); lastTyping = now; }
+    if (socket && openConvObj && now - lastTyping > 1500) { socket.emit('typing', openConvObj.id); lastTyping = now; }
   });
 
-  // ---- Profile ----
-  function openProfile(first) {
-    firstProfile = !!first;
+  // ---------------- Find people / New chat ----------------
+  function openNewChat() {
+    show('newchat');
+    $('searchInput').value = '';
+    $('results').innerHTML = '';
+    $('searchError').textContent = '';
+    $('searchInput').focus();
+  }
+  $('newBack').onclick = () => openList();
+
+  let searchTimer;
+  $('searchInput').addEventListener('input', (e) => {
+    e.target.value = cleanUser(e.target.value);
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(searchUsers, 300);
+  });
+
+  async function searchUsers() {
+    const q = $('searchInput').value;
+    $('searchError').textContent = '';
+    const box = $('results');
+    box.innerHTML = '';
+    if (q.length < 2) return;
+    const { data, error } = await sb.from('profiles')
+      .select('id,name,username,bio')
+      .ilike('username', q + '%')
+      .neq('id', myId())
+      .limit(10);
+    if (q !== $('searchInput').value) return; // search badal chuka hai
+    if (error) { $('searchError').textContent = error.message; return; }
+    if (!data.length) {
+      const e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = 'Is username se koi nahi mila.';
+      box.appendChild(e);
+      return;
+    }
+    data.forEach((u) => {
+      const row = document.createElement('button');
+      row.className = 'row'; row.type = 'button';
+      const av = document.createElement('div'); av.className = 'avatar'; paintAvatar(av, u.name);
+      const mid = document.createElement('div'); mid.className = 'mid';
+      const nm = document.createElement('b'); nm.textContent = u.name;
+      const un = document.createElement('div'); un.className = 'uname'; un.textContent = '@' + u.username;
+      mid.appendChild(nm); mid.appendChild(un);
+      if (u.bio) { const b = document.createElement('div'); b.className = 'last'; b.textContent = u.bio; mid.appendChild(b); }
+      row.appendChild(av); row.appendChild(mid);
+      row.onclick = () => startChat(u);
+      box.appendChild(row);
+    });
+  }
+
+  async function startChat(u) {
+    $('searchError').textContent = '';
+    const { data: cid, error } = await sb.rpc('start_dm', { other: u.id });
+    if (error) { $('searchError').textContent = error.message; return; }
+    let c = convs.find((x) => x.id === cid);
+    if (!c) {
+      c = { id: cid, is_group: false, title: u.name, username: u.username, last_text: '', last_message_at: new Date().toISOString() };
+      convs.push(c);
+    }
+    openConv(c);
+  }
+
+  // ---------------- Profile ----------------
+  function openProfile(first, p, msg) {
     show('profile');
     $('profileTitle').textContent = first ? 'Set up your profile' : 'Your profile';
     $('backBtn').classList.toggle('hidden', !!first);
-    $('pName').value = profile ? profile.name : '';
-    $('pBio').value = profile ? profile.bio : '';
-    $('profError').textContent = '';
+    $('pName').value = p ? (p.name || '') : '';
+    $('pUser').value = p ? (p.username || '') : '';
+    $('pBio').value = p ? (p.bio || '') : '';
+    $('profError').textContent = msg || '';
     paintAvatar($('bigAvatar'), $('pName').value);
   }
   $('pName').addEventListener('input', () => paintAvatar($('bigAvatar'), $('pName').value));
-  $('meBtn').onclick = () => openProfile(false);
-  $('backBtn').onclick = () => show('chat');
+  $('backBtn').onclick = () => openList();
 
   $('profile').addEventListener('submit', async (e) => {
     e.preventDefault();
     $('profError').textContent = '';
     $('saveBtn').disabled = true;
     const name = $('pName').value.trim().slice(0, 20);
+    const username = cleanUser($('pUser').value);
     const bio = $('pBio').value.trim().slice(0, 120);
     try {
       if (!name) throw new Error('Naam zaroori hai.');
+      if (!USERNAME_RE.test(username)) throw new Error('Username 3-20 characters ka ho: small letters, numbers, _ ya .');
       const { data, error } = await sb.from('profiles')
-        .upsert({ id: session.user.id, name, bio })
+        .upsert({ id: myId(), name, username, bio })
         .select().single();
       if (error) throw error;
       profile = data;
-      openChat(); // naye naam ke saath dobara connect
+      startApp(); // naye naam ke saath dobara connect
     } catch (err) {
-      $('profError').textContent = err.message || String(err);
+      $('profError').textContent = err.code === '23505' ? 'Ye username pehle se kisi ka hai, dusra chuno.' : (err.message || String(err));
     } finally {
       $('saveBtn').disabled = false;
     }
@@ -373,7 +606,7 @@
   async function logout() {
     if (socket) { socket.disconnect(); socket = null; }
     await sb.auth.signOut();
-    session = null; profile = null;
+    session = null; profile = null; convs = []; openConvObj = null;
     $('passInput').value = '';
     show('auth');
   }
@@ -382,7 +615,7 @@
   // Token apne aap refresh hota rehta hai, use taaza rakho
   sb.auth.onAuthStateChange((event, s) => { session = s; });
 
-  // ---- Start ----
+  // ---------------- Start ----------------
   (async function start() {
     setMode('login');
     try {

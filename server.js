@@ -1,6 +1,6 @@
-// Baatein - server (v2: login + saved messages)
-// Ye file chat ka "dimaag" hai. Ab ye har user ka login check karta hai
-// aur messages Supabase database me save karta hai.
+// Baatein - server (v3: private chats)
+// Ye server ab "post office" ki tarah hai: message database me save karta hai
+// aur sirf us chat ke members ko turant bhejta hai.
 
 const express = require('express');
 const http = require('http');
@@ -10,13 +10,15 @@ const { Server } = require('socket.io');
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://qvmvquirpifymtbjhszf.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_BwWzLpbMD_R2ZK1zWf8ugQ_Z7LqC9MJ';
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.static('public'));
 
-// Supabase se baat karne ka chhota helper (user ke apne token ke saath, to database ke rules lagte hain)
+// Supabase se baat karne ka helper (user ke apne token ke saath, to database ke rules lagte hain)
 function sb(path, token, options = {}) {
   return fetch(SUPABASE_URL + path, {
     ...options,
@@ -52,54 +54,56 @@ io.use(async (socket, next) => {
   }
 });
 
-// Kaun-kaun online hai: socket id -> user id
-const online = new Map();
-function onlineCount() {
-  return new Set(online.values()).size;
-}
-
 io.on('connection', async (socket) => {
   const { uid, name, token } = socket.data;
-  online.set(socket.id, uid);
 
-  // Purane 50 messages bhejo
+  // Mera apna "kamra" (taaki mere saare devices ko message mile)
+  socket.join('user:' + uid);
+
+  // Meri saari chats ke kamre join karo
   try {
-    const r = await sb('/rest/v1/messages?select=user_id,name,text,created_at&order=created_at.desc&limit=50', token);
-    if (r.ok) {
-      const rows = (await r.json()).reverse();
-      socket.emit('history', rows.map((m) => ({
-        uid: m.user_id, name: m.name, text: m.text, time: new Date(m.created_at).getTime(),
-      })));
-    }
-  } catch (e) { /* history na mile to bhi chat chalega */ }
-
-  socket.broadcast.emit('system', name + ' joined');
-  io.emit('online', onlineCount());
+    const r = await sb('/rest/v1/conversation_members?user_id=eq.' + uid + '&select=conversation_id', token);
+    if (r.ok) (await r.json()).forEach((x) => socket.join('conv:' + x.conversation_id));
+  } catch (e) { /* dobara connect hone par phir try hoga */ }
 
   // Naya message
   socket.on('message', async (payload) => {
+    const cid = String((payload && payload.conversation_id) || '');
     const text = String((payload && payload.text) || '').trim().slice(0, 500);
-    if (!text) return;
-
-    // Sabko turant bhejo
-    io.emit('message', { uid, name, text, time: Date.now() });
-
-    // Database me save karo (fresh token ke saath, warna purana)
+    if (!UUID.test(cid) || !text) return;
     const t = (payload && payload.token) || token;
+
     try {
-      await sb('/rest/v1/messages', t, {
+      // Database me save (rules khud check karte hain ki main is chat ka member hoon)
+      const r = await sb('/rest/v1/chat_messages', t, {
         method: 'POST',
-        headers: { Prefer: 'return=minimal' },
-        body: JSON.stringify({ user_id: uid, name, text }),
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ conversation_id: cid, sender_id: uid, text }),
       });
-    } catch (e) { /* save fail hua to bhi chat chalti rahe */ }
+      if (!r.ok) { socket.emit('send_failed', { conversation_id: cid }); return; }
+      const row = (await r.json())[0];
+
+      // Is chat ke sabhi members ke sockets ko kamre me daalo (naye chat ke liye zaroori)
+      const mr = await sb('/rest/v1/conversation_members?conversation_id=eq.' + cid + '&select=user_id', t);
+      if (mr.ok) {
+        for (const m of await mr.json()) io.in('user:' + m.user_id).socketsJoin('conv:' + cid);
+      }
+
+      io.to('conv:' + cid).emit('message', {
+        id: row.id,
+        conversation_id: cid,
+        sender_id: uid,
+        text: row.text,
+        time: new Date(row.created_at).getTime(),
+      });
+    } catch (e) {
+      socket.emit('send_failed', { conversation_id: cid });
+    }
   });
 
-  socket.on('typing', () => socket.broadcast.emit('typing', name));
-
-  socket.on('disconnect', () => {
-    online.delete(socket.id);
-    io.emit('online', onlineCount());
+  // "typing..." (sirf us chat ke dusre log dekhenge)
+  socket.on('typing', (cid) => {
+    if (UUID.test(String(cid))) socket.to('conv:' + cid).emit('typing', { conversation_id: cid, name });
   });
 });
 
