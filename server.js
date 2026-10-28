@@ -1,52 +1,105 @@
-// Baatein - server
-// Ye file chat ka "dimaag" hai: sabke messages yahin se hokar guzarte hain.
+// Baatein - server (v2: login + saved messages)
+// Ye file chat ka "dimaag" hai. Ab ye har user ka login check karta hai
+// aur messages Supabase database me save karta hai.
 
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 
+// Ye dono public hain (publishable key chhupani nahi padti). Render me env se bhi de sakte ho.
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://qvmvquirpifymtbjhszf.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_BwWzLpbMD_R2ZK1zWf8ugQ_Z7LqC9MJ';
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// "public" folder ki files (index.html) browser ko dikhao
 app.use(express.static('public'));
 
-// Kaun-kaun online hai: socket id -> naam
-const users = new Map();
+// Supabase se baat karne ka chhota helper (user ke apne token ke saath, to database ke rules lagte hain)
+function sb(path, token, options = {}) {
+  return fetch(SUPABASE_URL + path, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+}
 
-io.on('connection', (socket) => {
-  // Jab koi apna naam daal kar chat me aaye
-  socket.on('join', (name) => {
-    name = String(name || '').trim().slice(0, 20);
-    if (!name) return;
-    users.set(socket.id, name);
-    io.emit('system', name + ' joined the chat');
-    io.emit('online', users.size);
+// Har naye connection par: token check karo, profile dhundo
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth && socket.handshake.auth.token;
+    if (!token) return next(new Error('login_required'));
+
+    const r = await sb('/auth/v1/user', token);
+    if (!r.ok) return next(new Error('login_required'));
+    const user = await r.json();
+
+    const p = await sb('/rest/v1/profiles?id=eq.' + user.id + '&select=name', token);
+    const rows = p.ok ? await p.json() : [];
+    if (!rows.length) return next(new Error('no_profile'));
+
+    socket.data.uid = user.id;
+    socket.data.name = rows[0].name;
+    socket.data.token = token;
+    next();
+  } catch (e) {
+    next(new Error('server_error'));
+  }
+});
+
+// Kaun-kaun online hai: socket id -> user id
+const online = new Map();
+function onlineCount() {
+  return new Set(online.values()).size;
+}
+
+io.on('connection', async (socket) => {
+  const { uid, name, token } = socket.data;
+  online.set(socket.id, uid);
+
+  // Purane 50 messages bhejo
+  try {
+    const r = await sb('/rest/v1/messages?select=user_id,name,text,created_at&order=created_at.desc&limit=50', token);
+    if (r.ok) {
+      const rows = (await r.json()).reverse();
+      socket.emit('history', rows.map((m) => ({
+        uid: m.user_id, name: m.name, text: m.text, time: new Date(m.created_at).getTime(),
+      })));
+    }
+  } catch (e) { /* history na mile to bhi chat chalega */ }
+
+  socket.broadcast.emit('system', name + ' joined');
+  io.emit('online', onlineCount());
+
+  // Naya message
+  socket.on('message', async (payload) => {
+    const text = String((payload && payload.text) || '').trim().slice(0, 500);
+    if (!text) return;
+
+    // Sabko turant bhejo
+    io.emit('message', { uid, name, text, time: Date.now() });
+
+    // Database me save karo (fresh token ke saath, warna purana)
+    const t = (payload && payload.token) || token;
+    try {
+      await sb('/rest/v1/messages', t, {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ user_id: uid, name, text }),
+      });
+    } catch (e) { /* save fail hua to bhi chat chalti rahe */ }
   });
 
-  // Jab koi message bheje
-  socket.on('message', (text) => {
-    const name = users.get(socket.id);
-    text = String(text || '').trim().slice(0, 500);
-    if (!name || !text) return;
-    // Message sabko bhej do (bhejne wale ko bhi)
-    io.emit('message', { id: socket.id, name, text, time: Date.now() });
-  });
+  socket.on('typing', () => socket.broadcast.emit('typing', name));
 
-  // "typing..." dikhane ke liye (bhejne wale ko chhodkar baaki sabko)
-  socket.on('typing', () => {
-    const name = users.get(socket.id);
-    if (name) socket.broadcast.emit('typing', name);
-  });
-
-  // Jab koi chala jaye
   socket.on('disconnect', () => {
-    const name = users.get(socket.id);
-    if (!name) return;
-    users.delete(socket.id);
-    io.emit('system', name + ' left');
-    io.emit('online', users.size);
+    online.delete(socket.id);
+    io.emit('online', onlineCount());
   });
 });
 

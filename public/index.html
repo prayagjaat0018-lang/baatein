@@ -14,7 +14,6 @@
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap">
 <style>
-  /* ---------- Colors (yahin se poora look badal sakte ho) ---------- */
   :root {
     --bg: #0B0B12;
     --card: #1A1A26;
@@ -22,113 +21,81 @@
     --lime: #C8FF3D;
     --text: #F4F4FA;
     --muted: #9A9BB4;
+    --danger: #FF6B8A;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Sans', system-ui, sans-serif;
-  }
-  .app {
-    max-width: 480px;
-    height: 100vh;
-    height: 100dvh;
-    margin: 0 auto;
-    display: flex;
-    flex-direction: column;
-  }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'DM Sans', system-ui, sans-serif; }
+  .app { max-width: 480px; height: 100vh; height: 100dvh; margin: 0 auto; display: flex; flex-direction: column; }
   .hidden { display: none !important; }
 
-  /* ---------- Welcome screen ---------- */
-  #join {
-    flex: 1;
-    padding: 56px 24px 32px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
   .brand { display: flex; align-items: center; gap: 10px; }
-  .logo {
-    width: 42px; height: 42px; border-radius: 14px;
-    background: var(--lime);
-    display: flex; align-items: center; justify-content: center;
-    transform: rotate(-6deg);
-  }
+  .logo { width: 42px; height: 42px; border-radius: 14px; background: var(--lime); display: flex; align-items: center; justify-content: center; transform: rotate(-6deg); }
   .brand b { font-family: 'Sora', sans-serif; font-size: 26px; font-weight: 800; letter-spacing: -1px; }
   .brand span { font-size: 14px; font-weight: 600; color: #E4DCFF; }
-  #join h1 {
-    font-family: 'Sora', sans-serif;
-    font-size: 38px; line-height: 1.1; letter-spacing: -1.5px;
-    margin: 48px 0 0;
-  }
-  #join p { color: #B4B5CC; font-size: 16px; margin: 0 0 auto; }
-  input {
-    height: 56px; border: 0; border-radius: 28px;
-    background: var(--card); color: var(--text);
-    padding: 0 20px; font-size: 16px; font-family: inherit;
-    outline: none;
-  }
-  input:focus { box-shadow: 0 0 0 2px var(--violet); }
-  button.main {
-    height: 58px; border: 0; border-radius: 29px;
-    background: var(--lime); color: #0B0B12;
-    font-family: 'Sora', sans-serif; font-size: 17px; font-weight: 700;
-    cursor: pointer;
-  }
 
-  /* ---------- Chat screen ---------- */
+  input, textarea {
+    border: 0; border-radius: 28px; background: var(--card); color: var(--text);
+    padding: 0 20px; font-size: 16px; font-family: inherit; outline: none; width: 100%;
+  }
+  input { height: 56px; }
+  textarea { border-radius: 20px; padding: 16px 20px; resize: none; height: 96px; }
+  input:focus, textarea:focus { box-shadow: 0 0 0 2px var(--violet); }
+  label { font-size: 13px; font-weight: 600; color: var(--muted); margin: 4px 0 -4px 6px; }
+  button.main {
+    height: 58px; border: 0; border-radius: 29px; background: var(--lime); color: #0B0B12;
+    font-family: 'Sora', sans-serif; font-size: 17px; font-weight: 700; cursor: pointer;
+  }
+  button.main:disabled { opacity: 0.6; }
+  button.ghost {
+    height: 52px; border: 1.5px solid #3A3B4F; border-radius: 26px; background: transparent; color: var(--text);
+    font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  .error { color: var(--danger); font-size: 14px; font-weight: 600; min-height: 20px; margin: 0; }
+  .note { color: var(--lime); font-size: 14px; font-weight: 600; margin: 0; }
+
+  /* ---------- Auth ---------- */
+  #auth, #profile { flex: 1; padding: 48px 24px 28px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+  #auth h1 { font-family: 'Sora', sans-serif; font-size: 34px; line-height: 1.1; letter-spacing: -1.4px; margin: 28px 0 0; }
+  #auth p.sub { color: #B4B5CC; font-size: 16px; margin: 0 0 6px; }
+  .tabs { display: flex; background: var(--card); border-radius: 28px; padding: 4px; }
+  .tabs button { flex: 1; height: 44px; border: 0; border-radius: 24px; background: transparent; color: var(--muted); font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+  .tabs button.on { background: var(--violet); color: #fff; }
+
+  /* ---------- Chat ---------- */
   #chat { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-  header {
-    padding: 18px 20px 12px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
+  header { padding: 16px 20px 10px; display: flex; align-items: center; justify-content: space-between; }
   header .brand b { font-size: 22px; }
-  .online { font-size: 13px; font-weight: 600; color: var(--lime); }
-  #messages {
-    flex: 1; overflow-y: auto;
-    padding: 8px 16px;
-    display: flex; flex-direction: column; gap: 10px;
-  }
-  .msg {
-    max-width: 78%;
-    padding: 10px 15px 7px;
-    border-radius: 22px 22px 22px 6px;
-    background: var(--card);
-    display: flex; flex-direction: column; gap: 3px;
-    word-wrap: break-word; overflow-wrap: anywhere;
-    animation: pop 0.18s ease-out;
-  }
-  .msg.mine {
-    align-self: flex-end;
-    background: var(--violet); color: #fff;
-    border-radius: 22px 22px 6px 22px;
-  }
+  .online { font-size: 13px; font-weight: 600; color: var(--lime); margin-right: 12px; }
+  .avatar { width: 44px; height: 44px; border-radius: 50%; border: 0; display: flex; align-items: center; justify-content: center; font-family: 'Sora', sans-serif; font-weight: 700; font-size: 17px; color: #0B0B12; cursor: pointer; flex-shrink: 0; }
+  #messages { flex: 1; overflow-y: auto; padding: 8px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 78%; padding: 10px 15px 7px; border-radius: 22px 22px 22px 6px; background: var(--card); display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; animation: pop 0.18s ease-out; }
+  .msg.mine { align-self: flex-end; background: var(--violet); color: #fff; border-radius: 22px 22px 6px 22px; }
   .msg .who { font-size: 12px; font-weight: 700; color: var(--lime); }
   .msg .text { font-size: 15px; line-height: 1.4; }
   .msg .time { align-self: flex-end; font-size: 11px; color: var(--muted); }
   .msg.mine .time { color: #E4DCFF; }
-  .system {
-    align-self: center;
-    font-size: 12px; font-weight: 600; color: #B4B5CC;
-    background: var(--card); padding: 6px 12px; border-radius: 999px;
-  }
+  .system { align-self: center; font-size: 12px; font-weight: 600; color: #B4B5CC; background: var(--card); padding: 6px 12px; border-radius: 999px; }
   @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   #typing { height: 20px; padding: 0 20px; font-size: 12px; font-weight: 600; color: var(--lime); }
   form#send { display: flex; gap: 8px; padding: 6px 12px 20px; }
   form#send input { flex: 1; min-width: 0; }
-  form#send button {
-    width: 56px; height: 56px; border: 0; border-radius: 50%;
-    background: var(--lime); cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-  }
+  form#send button { width: 56px; height: 56px; border: 0; border-radius: 50%; background: var(--lime); cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+  /* ---------- Profile ---------- */
+  .backrow { display: flex; align-items: center; gap: 8px; }
+  .backrow button { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--card); color: var(--text); font-size: 20px; cursor: pointer; }
+  .backrow h2 { margin: 0; font-family: 'Sora', sans-serif; font-size: 22px; }
+  .bigavatar { width: 96px; height: 96px; font-size: 38px; align-self: center; margin: 8px 0; cursor: default; }
 </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- Screen 1: naam daalo -->
-  <form id="join">
+  <!-- Loading -->
+  <div id="loading" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:600">Loading...</div>
+
+  <!-- Screen 1: Login / Sign up -->
+  <form id="auth" class="hidden">
     <div class="brand">
       <div class="logo">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="#0B0B12"><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2h9A3.5 3.5 0 0 1 20 5.5v7a3.5 3.5 0 0 1-3.5 3.5H11l-4.6 4.2c-.7.6-1.4.2-1.4-.7V16A3.5 3.5 0 0 1 4 12.5z"/></svg>
@@ -136,12 +103,21 @@
       <b>Baatein</b><span>बातें</span>
     </div>
     <h1>Chat your way.<br>English, हिंदी,<br>or both.</h1>
-    <p>Fast, free and ad-free.</p>
-    <input id="nameInput" type="text" maxlength="20" placeholder="Your name" aria-label="Your name" autocomplete="off">
-    <button class="main" type="submit">Start chatting</button>
+    <p class="sub">Fast, free and ad-free.</p>
+
+    <div class="tabs">
+      <button type="button" id="tabLogin" class="on">Log in</button>
+      <button type="button" id="tabSignup">Sign up</button>
+    </div>
+
+    <input id="nameInput" class="hidden" type="text" maxlength="20" placeholder="Your name" aria-label="Your name" autocomplete="nickname">
+    <input id="emailInput" type="email" placeholder="Email" aria-label="Email" autocomplete="email" required>
+    <input id="passInput" type="password" minlength="6" placeholder="Password (min 6 characters)" aria-label="Password" autocomplete="current-password" required>
+    <p class="error" id="authError"></p>
+    <button class="main" id="authBtn" type="submit">Log in</button>
   </form>
 
-  <!-- Screen 2: chat -->
+  <!-- Screen 2: Chat -->
   <div id="chat" class="hidden">
     <header>
       <div class="brand">
@@ -150,7 +126,10 @@
         </div>
         <b>Baatein</b>
       </div>
-      <div class="online" id="online">1 online</div>
+      <div style="display:flex;align-items:center">
+        <div class="online" id="online">1 online</div>
+        <button class="avatar" id="meBtn" aria-label="My profile">?</button>
+      </div>
     </header>
     <div id="messages"></div>
     <div id="typing"></div>
@@ -162,62 +141,126 @@
     </form>
   </div>
 
+  <!-- Screen 3: Profile -->
+  <form id="profile" class="hidden">
+    <div class="backrow">
+      <button type="button" id="backBtn" aria-label="Back">&#8592;</button>
+      <h2 id="profileTitle">Your profile</h2>
+    </div>
+    <div class="avatar bigavatar" id="bigAvatar">?</div>
+    <label for="pName">Name</label>
+    <input id="pName" type="text" maxlength="20" placeholder="Your name" required>
+    <label for="pBio">About (optional)</label>
+    <textarea id="pBio" maxlength="120" placeholder="Hey there! I'm on Baatein."></textarea>
+    <p class="error" id="profError"></p>
+    <button class="main" id="saveBtn" type="submit">Save</button>
+    <button class="ghost" id="logoutBtn" type="button">Log out</button>
+  </form>
+
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script>
-  // App ko installable banane ke liye
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
   }
-</script>
-<script>
-  const socket = io();          // server se connect
-  let myName = '';
 
-  const joinForm = document.getElementById('join');
-  const chatBox = document.getElementById('chat');
-  const messages = document.getElementById('messages');
-  const typingEl = document.getElementById('typing');
-  const msgInput = document.getElementById('msgInput');
+  // ---- Supabase (ye public keys hain, chhupane ki zaroorat nahi) ----
+  const SUPABASE_URL = 'https://qvmvquirpifymtbjhszf.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_BwWzLpbMD_R2ZK1zWf8ugQ_Z7LqC9MJ';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // Naam daal kar chat me jao
-  joinForm.addEventListener('submit', (e) => {
+  const $ = (id) => document.getElementById(id);
+  const screens = ['loading', 'auth', 'chat', 'profile'];
+  function show(name) { screens.forEach((s) => $(s).classList.toggle('hidden', s !== name)); }
+
+  let session = null;
+  let profile = null;
+  let socket = null;
+  let mode = 'login';
+  let firstProfile = false;
+
+  // ---- Avatar (naam ka pehla akshar + rang) ----
+  const COLORS = ['#FFB8D2', '#B6C4FF', '#9FE8D6', '#F2E47A', '#D9C2FF', '#FFC2A0', '#A8E6A1'];
+  function colorFor(str) {
+    let h = 0;
+    for (const ch of String(str)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return COLORS[h % COLORS.length];
+  }
+  function paintAvatar(el, name) {
+    el.textContent = (name || '?').trim().charAt(0).toUpperCase() || '?';
+    el.style.background = colorFor(name);
+  }
+
+  // ---- Login / Sign up ----
+  function setMode(m) {
+    mode = m;
+    $('tabLogin').classList.toggle('on', m === 'login');
+    $('tabSignup').classList.toggle('on', m === 'signup');
+    $('nameInput').classList.toggle('hidden', m !== 'signup');
+    $('nameInput').required = m === 'signup';
+    $('authBtn').textContent = m === 'signup' ? 'Create account' : 'Log in';
+    $('passInput').autocomplete = m === 'signup' ? 'new-password' : 'current-password';
+    $('authError').textContent = '';
+  }
+  $('tabLogin').onclick = () => setMode('login');
+  $('tabSignup').onclick = () => setMode('signup');
+
+  function friendly(msg) {
+    if (/invalid login/i.test(msg)) return 'Email ya password galat hai.';
+    if (/already registered|already exists/i.test(msg)) return 'Is email se account pehle se hai. Log in karo.';
+    if (/email.*confirm/i.test(msg)) return 'Pehle apna email confirm karo.';
+    if (/rate limit/i.test(msg)) return 'Bahut zyada try ho gaye, thodi der baad try karo.';
+    return msg;
+  }
+
+  $('auth').addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = document.getElementById('nameInput').value.trim();
-    if (!name) return;
-    myName = name;
-    socket.emit('join', myName);
-    joinForm.classList.add('hidden');
-    chatBox.classList.remove('hidden');
-    msgInput.focus();
-  });
-
-  // Message bhejo
-  document.getElementById('send').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const text = msgInput.value.trim();
-    if (!text) return;
-    socket.emit('message', text);
-    msgInput.value = '';
-  });
-
-  // "typing..." signal (har 1.5 second me ek baar)
-  let lastTyping = 0;
-  msgInput.addEventListener('input', () => {
-    const now = Date.now();
-    if (now - lastTyping > 1500) {
-      socket.emit('typing');
-      lastTyping = now;
+    $('authError').textContent = '';
+    $('authBtn').disabled = true;
+    const email = $('emailInput').value.trim();
+    const password = $('passInput').value;
+    try {
+      if (mode === 'signup') {
+        const name = $('nameInput').value.trim().slice(0, 20);
+        if (!name) throw new Error('Apna naam daalo.');
+        const { data, error } = await sb.auth.signUp({ email, password });
+        if (error) throw error;
+        if (!data.session) {
+          throw new Error('Email confirm karna padega. Supabase me "Confirm email" band karo ya inbox check karo.');
+        }
+        session = data.session;
+        const { error: pe } = await sb.from('profiles').insert({ id: data.user.id, name });
+        if (pe) throw pe;
+      } else {
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        session = data.session;
+      }
+      await enter();
+    } catch (err) {
+      $('authError').textContent = friendly(err.message || String(err));
+    } finally {
+      $('authBtn').disabled = false;
     }
   });
 
-  // Naya message aaya
-  socket.on('message', (m) => {
-    const box = document.createElement('div');
-    box.className = 'msg' + (m.id === socket.id ? ' mine' : '');
+  // ---- Login ke baad: profile dhundo, chat kholo ----
+  async function enter() {
+    const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+    if (error) { $('authError').textContent = error.message; show('auth'); return; }
+    profile = data;
+    if (!profile) { openProfile(true); return; }
+    openChat();
+  }
 
-    if (m.id !== socket.id) {
+  // ---- Chat ----
+  function addMessage(m) {
+    const mine = m.uid === (session && session.user.id);
+    const box = document.createElement('div');
+    box.className = 'msg' + (mine ? ' mine' : '');
+    if (!mine) {
       const who = document.createElement('span');
       who.className = 'who';
       who.textContent = m.name;
@@ -225,41 +268,131 @@
     }
     const text = document.createElement('span');
     text.className = 'text';
-    text.textContent = m.text;          // textContent = safe (koi HTML nahi chalega)
+    text.textContent = m.text; // textContent = safe, koi HTML nahi chalega
     box.appendChild(text);
-
     const time = document.createElement('span');
     time.className = 'time';
     time.textContent = new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     box.appendChild(time);
-
-    messages.appendChild(box);
-    messages.scrollTop = messages.scrollHeight;
-  });
-
-  // "X joined / left"
-  socket.on('system', (txt) => {
+    $('messages').appendChild(box);
+  }
+  function addSystem(txt) {
     const el = document.createElement('div');
     el.className = 'system';
     el.textContent = txt;
-    messages.appendChild(el);
-    messages.scrollTop = messages.scrollHeight;
+    $('messages').appendChild(el);
+  }
+  function scrollDown() { $('messages').scrollTop = $('messages').scrollHeight; }
+
+  function openChat() {
+    show('chat');
+    paintAvatar($('meBtn'), profile.name);
+    connectSocket();
+    $('msgInput').focus();
+  }
+
+  function connectSocket() {
+    if (socket) { socket.disconnect(); socket = null; }
+    $('messages').innerHTML = '';
+    // auth ek function hai, taaki reconnect par hamesha taaza token jaye
+    socket = io({ auth: (cb) => cb({ token: session && session.access_token }) });
+
+    socket.on('connect_error', (err) => {
+      if (err.message === 'login_required') { logout(); }
+      else if (err.message === 'no_profile') { openProfile(true); }
+      // baaki errors par socket khud dobara try karta hai
+    });
+    socket.on('history', (rows) => {
+      $('messages').innerHTML = '';
+      rows.forEach(addMessage);
+      scrollDown();
+    });
+    socket.on('message', (m) => { addMessage(m); scrollDown(); });
+    socket.on('system', (t) => { addSystem(t); scrollDown(); });
+    socket.on('online', (n) => { $('online').textContent = n + ' online'; });
+
+    let typingTimer;
+    socket.on('typing', (name) => {
+      $('typing').textContent = name + ' is typing...';
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(() => { $('typing').textContent = ''; }, 1800);
+    });
+  }
+
+  $('send').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = $('msgInput').value.trim();
+    if (!text || !socket) return;
+    const { data } = await sb.auth.getSession(); // taaza token
+    socket.emit('message', { text, token: data.session && data.session.access_token });
+    $('msgInput').value = '';
   });
 
-  socket.on('online', (n) => {
-    document.getElementById('online').textContent = n + ' online';
+  let lastTyping = 0;
+  $('msgInput').addEventListener('input', () => {
+    const now = Date.now();
+    if (socket && now - lastTyping > 1500) { socket.emit('typing'); lastTyping = now; }
   });
 
-  // Dusre ka typing indicator
-  let typingTimer;
-  socket.on('typing', (name) => {
-    typingEl.textContent = name + ' is typing...';
-    clearTimeout(typingTimer);
-    typingTimer = setTimeout(() => { typingEl.textContent = ''; }, 1800);
+  // ---- Profile ----
+  function openProfile(first) {
+    firstProfile = !!first;
+    show('profile');
+    $('profileTitle').textContent = first ? 'Set up your profile' : 'Your profile';
+    $('backBtn').classList.toggle('hidden', !!first);
+    $('pName').value = profile ? profile.name : '';
+    $('pBio').value = profile ? profile.bio : '';
+    $('profError').textContent = '';
+    paintAvatar($('bigAvatar'), $('pName').value);
+  }
+  $('pName').addEventListener('input', () => paintAvatar($('bigAvatar'), $('pName').value));
+  $('meBtn').onclick = () => openProfile(false);
+  $('backBtn').onclick = () => show('chat');
+
+  $('profile').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('profError').textContent = '';
+    $('saveBtn').disabled = true;
+    const name = $('pName').value.trim().slice(0, 20);
+    const bio = $('pBio').value.trim().slice(0, 120);
+    try {
+      if (!name) throw new Error('Naam zaroori hai.');
+      const { data, error } = await sb.from('profiles')
+        .upsert({ id: session.user.id, name, bio })
+        .select().single();
+      if (error) throw error;
+      profile = data;
+      openChat(); // naye naam ke saath dobara connect
+    } catch (err) {
+      $('profError').textContent = err.message || String(err);
+    } finally {
+      $('saveBtn').disabled = false;
+    }
   });
 
-  // Net chhut ke wapas aaye to dobara join karo
-  socket.on('connect', () => { if (myName) socket.emit('join', myName); });
+  async function logout() {
+    if (socket) { socket.disconnect(); socket = null; }
+    await sb.auth.signOut();
+    session = null; profile = null;
+    $('passInput').value = '';
+    show('auth');
+  }
+  $('logoutBtn').onclick = logout;
+
+  // Token apne aap refresh hota rehta hai, use taaza rakho
+  sb.auth.onAuthStateChange((event, s) => { session = s; });
+
+  // ---- Start ----
+  (async function start() {
+    setMode('login');
+    try {
+      const { data } = await sb.auth.getSession();
+      session = data.session;
+      if (session) await enter(); else show('auth');
+    } catch (e) {
+      show('auth');
+    }
+  })();
 </script>
 </body>
 </html>
