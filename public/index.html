@@ -694,6 +694,7 @@
   const BGS = ['#6C47FF', '#D6336C', '#0F8B8D', '#E8590C', '#3B5BDB', '#2A2B3D'];
   const GRAD = 'linear-gradient(135deg,#FF4D8D,#C8FF3D)';
   let statusGroups = [];
+  let statusErr = '';
   let seenSet = new Set();
   let vGroup = null, vIdx = 0, vTimer = null;
 
@@ -706,6 +707,7 @@
         .order('created_at', { ascending: true }).limit(300),
       sb.from('status_views').select('status_id').eq('viewer_id', me),
     ]);
+    statusErr = a.error ? ('Status load error: ' + a.error.message) : '';
     seenSet = new Set((b.data || []).map((v) => v.status_id));
     const by = new Map();
     (a.data || []).forEach((r) => {
@@ -752,6 +754,13 @@
       .sort((x, y) => (Number(hasUnseen(y)) - Number(hasUnseen(x))) ||
         (new Date(y.items[y.items.length - 1].created_at) - new Date(x.items[x.items.length - 1].created_at)))
       .forEach((g) => row.appendChild(storyEl(g.name.split(' ')[0], g.name, hasUnseen(g) ? GRAD : '#3A3B4F', () => openViewer(g), false)));
+    if (statusErr) {
+      const e = document.createElement('div');
+      e.className = 'error';
+      e.style.cssText = 'align-self:center;min-width:220px;font-size:12px';
+      e.textContent = statusErr;
+      row.appendChild(e);
+    }
   }
 
   // ---- Naya status banana ----
@@ -829,8 +838,8 @@
         const cap = $('cCaption').value.trim().slice(0, 200);
         row = { user_id: me, kind: 'image', text: cap || null, image_path: path };
       }
-      const { error } = await sb.from('statuses').insert(row);
-      if (error) throw error;
+      const ins = await sb.from('statuses').insert(row).select('id').single();
+      if (ins.error) throw ins.error;
       await loadStatuses();
       openList();
     } catch (err) {
