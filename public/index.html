@@ -108,6 +108,49 @@
   form#send input { flex: 1; min-width: 0; }
   form#send button { width: 56px; height: 56px; border: 0; border-radius: 50%; background: var(--lime); cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
+  /* ---------- Status ---------- */
+  #storyRow { display: flex; gap: 14px; padding: 4px 20px 12px; overflow-x: auto; flex-shrink: 0; }
+  .story { position: relative; flex-shrink: 0; width: 66px; }
+  .story .sbtn { width: 100%; border: 0; background: transparent; color: var(--text); font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding: 0; }
+  .story .ring { width: 64px; height: 64px; border-radius: 50%; padding: 3px; }
+  .story .ring .avatar { width: 100%; height: 100%; border: 3px solid var(--bg); font-size: 20px; }
+  .story .lbl { font-size: 12px; font-weight: 600; color: #C9CAE0; max-width: 66px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .story .plus { position: absolute; top: 42px; right: 0; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--bg); background: var(--lime); color: #0B0B12; font-weight: 800; font-size: 16px; line-height: 1; cursor: pointer; padding: 0; }
+
+  #compose { flex: 1; padding: 0 0 24px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+  #cPreview { margin: 4px 16px 0; border-radius: 24px; height: 320px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+  #cText { background: transparent; box-shadow: none; height: 100%; border-radius: 0; padding: 28px; text-align: center; font-family: 'Sora', sans-serif; font-size: 26px; font-weight: 700; line-height: 1.25; color: #fff; display: flex; }
+  #cText::placeholder { color: rgba(255,255,255,0.6); }
+  #cImg { max-width: 100%; max-height: 100%; object-fit: contain; cursor: pointer; }
+  #cColors { display: flex; gap: 12px; justify-content: center; }
+  #cColors button { width: 34px; height: 34px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; padding: 0; }
+  #cColors button.on { border-color: #fff; }
+  #compose .pad { padding: 0 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  #viewer { flex: 1; position: relative; background: #000; overflow: hidden; }
+  #vBody { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  #vImg { max-width: 100%; max-height: 100%; object-fit: contain; }
+  #vText { font-family: 'Sora', sans-serif; font-size: 28px; font-weight: 700; line-height: 1.25; padding: 32px; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; color: #fff; }
+  #vCaption { position: absolute; left: 0; right: 0; bottom: 84px; text-align: center; padding: 10px 24px; font-size: 16px; background: linear-gradient(transparent, rgba(0,0,0,0.6)); color: #fff; pointer-events: none; }
+  #vTop { position: absolute; top: 0; left: 0; right: 0; z-index: 2; padding: 12px 14px 24px; background: linear-gradient(rgba(0,0,0,0.55), transparent); }
+  #vBars { display: flex; gap: 4px; margin-bottom: 12px; }
+  #vBars .bar { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.35); overflow: hidden; }
+  #vBars .bar.done { background: #fff; }
+  #vBars .bar.now::after { content: ''; display: block; height: 100%; background: #fff; animation: fill 5s linear forwards; }
+  @keyframes fill { from { width: 0; } to { width: 100%; } }
+  #vHead { display: flex; align-items: center; gap: 10px; }
+  #vHead .avatar { width: 40px; height: 40px; font-size: 16px; }
+  #vHead .t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #vHead .t b { font-size: 15px; }
+  #vHead .t small { font-size: 12px; color: #D0D0E0; }
+  #vClose { width: 40px; height: 40px; border: 0; border-radius: 50%; background: rgba(0,0,0,0.4); color: #fff; font-size: 18px; cursor: pointer; }
+  #vFoot { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 12px 16px 24px; display: flex; gap: 10px; background: linear-gradient(transparent, rgba(0,0,0,0.6)); }
+  #vFoot button { flex: 1; height: 48px; border: 0; border-radius: 24px; background: rgba(255,255,255,0.18); color: #fff; font-family: inherit; font-size: 15px; font-weight: 700; cursor: pointer; }
+  #vPanel { position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; max-height: 60%; overflow-y: auto; background: var(--card); border-radius: 24px 24px 0 0; padding: 18px 20px 28px; }
+  #vPanel h3 { margin: 0 0 10px; font-family: 'Sora', sans-serif; font-size: 17px; }
+  #vPanel .v { padding: 8px 0; font-size: 15px; }
+  #vPanel .v small { color: var(--muted); margin-left: 6px; }
+
   /* ---------- New chat ---------- */
   #newchat { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   #newchat .searchbox { padding: 4px 16px 10px; }
@@ -151,6 +194,7 @@
       </div>
       <button class="avatar" id="meBtn" aria-label="My profile">?</button>
     </header>
+    <div id="storyRow"></div>
     <div id="chatList"></div>
     <button class="fab" id="newBtn" type="button">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B0B12" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -188,6 +232,52 @@
     <div id="results" style="flex:1;overflow-y:auto"></div>
   </div>
 
+  <!-- New status -->
+  <form id="compose" class="hidden">
+    <div class="topbar">
+      <button class="back" id="cBack" type="button" aria-label="Back">&#8592;</button>
+      <div class="title"><b>New status</b><small>Disappears after 24 hours</small></div>
+    </div>
+    <div class="tabs" style="margin:0 16px">
+      <button type="button" id="cTabText" class="on">Text</button>
+      <button type="button" id="cTabPhoto">Photo</button>
+    </div>
+    <div id="cPreview">
+      <textarea id="cText" maxlength="200" placeholder="Type a status..." aria-label="Status text"></textarea>
+      <img id="cImg" class="hidden" alt="Selected photo">
+      <button type="button" id="cPick" class="ghost hidden">Choose photo</button>
+    </div>
+    <div id="cColors"></div>
+    <div class="pad">
+      <input id="cCaption" class="hidden" type="text" maxlength="200" placeholder="Add a caption (optional)" aria-label="Caption">
+      <p class="error" id="cErr"></p>
+      <button class="main" id="cPost" type="submit">Post status</button>
+    </div>
+    <input type="file" id="photoInput" accept="image/*" class="hidden">
+  </form>
+
+  <!-- View status -->
+  <div id="viewer" class="hidden">
+    <div id="vBody">
+      <img id="vImg" class="hidden" alt="Status photo">
+      <div id="vText" class="hidden"></div>
+    </div>
+    <div id="vCaption" class="hidden"></div>
+    <div id="vTop">
+      <div id="vBars"></div>
+      <div id="vHead">
+        <div class="avatar" id="vAv">?</div>
+        <div class="t"><b id="vName"></b><small id="vTime"></small></div>
+        <button id="vClose" type="button" aria-label="Close">&#10005;</button>
+      </div>
+    </div>
+    <div id="vFoot" class="hidden">
+      <button id="vSeen" type="button">Seen by 0</button>
+      <button id="vDel" type="button">Delete</button>
+    </div>
+    <div id="vPanel" class="hidden"></div>
+  </div>
+
   <!-- Profile -->
   <form id="profile" class="hidden">
     <div class="topbar" style="padding:0">
@@ -222,7 +312,7 @@
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const $ = (id) => document.getElementById(id);
-  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'profile'];
+  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'profile', 'compose', 'viewer'];
   let current = 'loading';
   function show(name) { current = name; screens.forEach((s) => $(s).classList.toggle('hidden', s !== name)); }
 
@@ -387,7 +477,9 @@
     openConvObj = null;
     show('list');
     renderList();
+    renderStories();
     loadList();
+    loadStatuses();
   }
 
   async function loadList() {
@@ -598,6 +690,283 @@
     openConv(c);
   }
 
+  // ---------------- Status (24 ghante wala) ----------------
+  const BGS = ['#6C47FF', '#D6336C', '#0F8B8D', '#E8590C', '#3B5BDB', '#2A2B3D'];
+  const GRAD = 'linear-gradient(135deg,#FF4D8D,#C8FF3D)';
+  let statusGroups = [];
+  let seenSet = new Set();
+  let vGroup = null, vIdx = 0, vTimer = null;
+
+  async function loadStatuses() {
+    const me = myId();
+    if (!me) return;
+    const [a, b] = await Promise.all([
+      sb.from('statuses')
+        .select('id,user_id,kind,text,bg,image_path,created_at,profiles(name,username)')
+        .order('created_at', { ascending: true }).limit(300),
+      sb.from('status_views').select('status_id').eq('viewer_id', me),
+    ]);
+    seenSet = new Set((b.data || []).map((v) => v.status_id));
+    const by = new Map();
+    (a.data || []).forEach((r) => {
+      if (!by.has(r.user_id)) by.set(r.user_id, { uid: r.user_id, name: (r.profiles && r.profiles.name) || '?', items: [] });
+      by.get(r.user_id).items.push(r);
+    });
+    statusGroups = [...by.values()];
+    renderStories();
+  }
+
+  const hasUnseen = (g) => g.items.some((i) => !seenSet.has(i.id));
+
+  function storyEl(label, avatarName, ring, onOpen, withPlus) {
+    const wrap = document.createElement('div');
+    wrap.className = 'story';
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'sbtn';
+    const r = document.createElement('div'); r.className = 'ring'; r.style.background = ring;
+    const av = document.createElement('div'); av.className = 'avatar'; paintAvatar(av, avatarName);
+    r.appendChild(av);
+    const l = document.createElement('span'); l.className = 'lbl'; l.textContent = label;
+    btn.appendChild(r); btn.appendChild(l);
+    btn.onclick = onOpen;
+    wrap.appendChild(btn);
+    if (withPlus) {
+      const p = document.createElement('button');
+      p.type = 'button'; p.className = 'plus'; p.textContent = '+';
+      p.setAttribute('aria-label', 'Add status');
+      p.onclick = openCompose;
+      wrap.appendChild(p);
+    }
+    return wrap;
+  }
+
+  function renderStories() {
+    const row = $('storyRow');
+    if (!row || !profile) return;
+    row.innerHTML = '';
+    const me = myId();
+    const mine = statusGroups.find((g) => g.uid === me);
+    row.appendChild(storyEl('Your vibe', profile.name, mine ? '#6C47FF' : '#3A3B4F', mine ? () => openViewer(mine) : openCompose, true));
+    statusGroups
+      .filter((g) => g.uid !== me)
+      .sort((x, y) => (Number(hasUnseen(y)) - Number(hasUnseen(x))) ||
+        (new Date(y.items[y.items.length - 1].created_at) - new Date(x.items[x.items.length - 1].created_at)))
+      .forEach((g) => row.appendChild(storyEl(g.name.split(' ')[0], g.name, hasUnseen(g) ? GRAD : '#3A3B4F', () => openViewer(g), false)));
+  }
+
+  // ---- Naya status banana ----
+  let cKind = 'text', cBg = BGS[0], cFile = null;
+
+  function paintComposeUI() {
+    $('cTabText').classList.toggle('on', cKind === 'text');
+    $('cTabPhoto').classList.toggle('on', cKind === 'image');
+    $('cText').classList.toggle('hidden', cKind !== 'text');
+    $('cColors').classList.toggle('hidden', cKind !== 'text');
+    $('cCaption').classList.toggle('hidden', cKind !== 'image');
+    $('cPick').classList.toggle('hidden', cKind !== 'image' || !!cFile);
+    $('cImg').classList.toggle('hidden', cKind !== 'image' || !cFile);
+    $('cPreview').style.background = cKind === 'text' ? cBg : '#12121C';
+    $('cColors').querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.bg === cBg));
+  }
+
+  function openCompose() {
+    show('compose');
+    cKind = 'text'; cBg = BGS[0]; cFile = null;
+    $('cText').value = ''; $('cCaption').value = ''; $('cErr').textContent = '';
+    $('photoInput').value = '';
+    const colors = $('cColors');
+    colors.innerHTML = '';
+    BGS.forEach((c) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.dataset.bg = c; b.style.background = c;
+      b.setAttribute('aria-label', 'Background color');
+      b.onclick = () => { cBg = c; paintComposeUI(); };
+      colors.appendChild(b);
+    });
+    paintComposeUI();
+  }
+  $('cBack').onclick = () => openList();
+  $('cTabText').onclick = () => { cKind = 'text'; paintComposeUI(); };
+  $('cTabPhoto').onclick = () => { cKind = 'image'; paintComposeUI(); };
+  $('cPick').onclick = () => $('photoInput').click();
+  $('cImg').onclick = () => $('photoInput').click();
+  $('photoInput').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    cFile = f;
+    $('cImg').src = URL.createObjectURL(f);
+    paintComposeUI();
+  });
+
+  // Photo chhoti karo (max 1080px) taaki jaldi upload ho aur data bache
+  async function compress(file) {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 1080 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * scale);
+    c.height = Math.round(bmp.height * scale);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.8));
+  }
+
+  $('compose').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('cErr').textContent = '';
+    $('cPost').disabled = true;
+    try {
+      const me = myId();
+      let row;
+      if (cKind === 'text') {
+        const text = $('cText').value.trim().slice(0, 200);
+        if (!text) throw new Error('Kuch likho pehle.');
+        row = { user_id: me, kind: 'text', text, bg: cBg };
+      } else {
+        if (!cFile) throw new Error('Pehle photo chuno.');
+        const blob = await compress(cFile);
+        const path = me + '/' + crypto.randomUUID() + '.jpg';
+        const up = await sb.storage.from('status').upload(path, blob, { contentType: 'image/jpeg' });
+        if (up.error) throw up.error;
+        const cap = $('cCaption').value.trim().slice(0, 200);
+        row = { user_id: me, kind: 'image', text: cap || null, image_path: path };
+      }
+      const { error } = await sb.from('statuses').insert(row);
+      if (error) throw error;
+      await loadStatuses();
+      openList();
+    } catch (err) {
+      $('cErr').textContent = err.message || String(err);
+    } finally {
+      $('cPost').disabled = false;
+    }
+  });
+
+  // ---- Status dekhna ----
+  function openViewer(group) {
+    vGroup = group;
+    const firstUnseen = group.items.findIndex((i) => !seenSet.has(i.id));
+    vIdx = group.uid === myId() ? 0 : (firstUnseen < 0 ? 0 : firstUnseen);
+    show('viewer');
+    renderStatus();
+  }
+
+  async function renderStatus() {
+    clearTimeout(vTimer);
+    $('vPanel').classList.add('hidden');
+    const s = vGroup && vGroup.items[vIdx];
+    if (!s) { closeViewer(); return; }
+    const mine = s.user_id === myId();
+
+    const bars = $('vBars');
+    bars.innerHTML = '';
+    vGroup.items.forEach((_, i) => {
+      const d = document.createElement('div');
+      d.className = 'bar' + (i < vIdx ? ' done' : i === vIdx ? ' now' : '');
+      bars.appendChild(d);
+    });
+    paintAvatar($('vAv'), vGroup.name);
+    $('vName').textContent = mine ? 'Your status' : vGroup.name;
+    $('vTime').textContent = fmtTime(s.created_at);
+
+    const body = $('vBody'), img = $('vImg'), txt = $('vText'), cap = $('vCaption');
+    if (s.kind === 'image') {
+      body.style.background = '#000';
+      txt.classList.add('hidden');
+      img.classList.remove('hidden');
+      img.removeAttribute('src');
+      cap.textContent = s.text || '';
+      cap.classList.toggle('hidden', !s.text);
+      const { data } = await sb.storage.from('status').createSignedUrl(s.image_path, 3600);
+      if (current !== 'viewer' || vGroup.items[vIdx] !== s) return; // user aage badh gaya
+      if (data) img.src = data.signedUrl;
+    } else {
+      body.style.background = s.bg || BGS[0];
+      img.classList.add('hidden');
+      cap.classList.add('hidden');
+      txt.classList.remove('hidden');
+      txt.textContent = s.text || '';
+    }
+
+    $('vFoot').classList.toggle('hidden', !mine);
+    if (mine) {
+      const { data } = await sb.from('status_views').select('viewer_id, profiles(name,username)').eq('status_id', s.id);
+      s._views = data || [];
+      if (current !== 'viewer' || vGroup.items[vIdx] !== s) return;
+      $('vSeen').textContent = 'Seen by ' + s._views.length;
+    } else if (!seenSet.has(s.id)) {
+      seenSet.add(s.id);
+      sb.from('status_views')
+        .upsert({ status_id: s.id, viewer_id: myId() }, { onConflict: 'status_id,viewer_id', ignoreDuplicates: true })
+        .then(() => {}, () => {});
+    }
+
+    clearTimeout(vTimer);
+    vTimer = setTimeout(nextStatus, 5000);
+  }
+
+  function nextStatus() {
+    if (current !== 'viewer') return;
+    vIdx++;
+    if (vIdx >= vGroup.items.length) closeViewer(); else renderStatus();
+  }
+  function prevStatus() {
+    vIdx = Math.max(0, vIdx - 1);
+    renderStatus();
+  }
+  function closeViewer() {
+    clearTimeout(vTimer);
+    vGroup = null;
+    openList();
+  }
+
+  $('vBody').addEventListener('click', (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    if (e.clientX - r.left < r.width / 3) prevStatus(); else nextStatus();
+  });
+  $('vClose').onclick = closeViewer;
+
+  $('vSeen').onclick = () => {
+    clearTimeout(vTimer);
+    const s = vGroup.items[vIdx];
+    const p = $('vPanel');
+    p.innerHTML = '';
+    const h = document.createElement('h3');
+    h.textContent = 'Seen by ' + (s._views || []).length;
+    p.appendChild(h);
+    if (!(s._views || []).length) {
+      const d = document.createElement('div'); d.className = 'v'; d.style.color = 'var(--muted)';
+      d.textContent = 'Abhi tak kisi ne nahi dekha.';
+      p.appendChild(d);
+    }
+    (s._views || []).forEach((v) => {
+      const d = document.createElement('div'); d.className = 'v';
+      d.textContent = (v.profiles && v.profiles.name) || 'Someone';
+      if (v.profiles && v.profiles.username) { const sm = document.createElement('small'); sm.textContent = '@' + v.profiles.username; d.appendChild(sm); }
+      p.appendChild(d);
+    });
+    const c = document.createElement('button');
+    c.type = 'button'; c.className = 'ghost'; c.style.width = '100%'; c.style.marginTop = '12px'; c.textContent = 'Close';
+    c.onclick = () => { p.classList.add('hidden'); vTimer = setTimeout(nextStatus, 5000); };
+    p.appendChild(c);
+    p.classList.remove('hidden');
+  };
+
+  $('vDel').onclick = async () => {
+    const s = vGroup.items[vIdx];
+    if (!confirm('Ye status delete kar dein?')) return;
+    clearTimeout(vTimer);
+    const { error } = await sb.from('statuses').delete().eq('id', s.id);
+    if (error) { alert(error.message); return; }
+    if (s.image_path) sb.storage.from('status').remove([s.image_path]).then(() => {}, () => {});
+    vGroup.items.splice(vIdx, 1);
+    if (!vGroup.items.length) {
+      statusGroups = statusGroups.filter((g) => g !== vGroup);
+      closeViewer();
+    } else {
+      vIdx = Math.min(vIdx, vGroup.items.length - 1);
+      renderStatus();
+    }
+  };
+
   // ---------------- Profile ----------------
   function openProfile(first, p, msg) {
     show('profile');
@@ -638,7 +1007,7 @@
   async function logout() {
     if (socket) { socket.disconnect(); socket = null; }
     await sb.auth.signOut();
-    session = null; profile = null; convs = []; openConvObj = null;
+    session = null; profile = null; convs = []; openConvObj = null; statusGroups = []; seenSet = new Set();
     $('passInput').value = '';
     show('auth');
   }
