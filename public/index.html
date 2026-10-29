@@ -92,6 +92,16 @@
   .empty b { display: block; font-family: 'Sora', sans-serif; font-size: 20px; color: var(--text); margin-bottom: 8px; }
   .fab { position: absolute; right: 20px; bottom: 28px; height: 54px; padding: 0 20px 0 16px; border: 0; border-radius: 27px; background: var(--lime); color: #0B0B12; display: flex; align-items: center; gap: 8px; font-family: 'Sora', sans-serif; font-size: 15px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 28px rgba(200,255,61,0.22); }
 
+  .callBtn { width: 40px; height: 40px; flex-shrink: 0; border: 1px solid #3A3B4F; border-radius: 50%; background: #1A1A26; color: #C8FF3D; font-size: 19px; cursor: pointer; }
+  #callOverlay { position: fixed; inset: 0; z-index: 1000; background: rgba(4,4,10,.96); color: #F4F4FA; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px; }
+  #callOverlay.hidden { display: none !important; }
+  #callTitle { font: 700 24px 'Sora', sans-serif; text-align: center; }
+  #callStatus { color: #B4B5CC; text-align: center; }
+  #callVideos { width: 100%; max-width: 700px; display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 8px; }
+  #callVideos video { width: 100%; max-height: 38vh; background: #1A1A26; border-radius: 14px; object-fit: cover; }
+  .callActions { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
+  .callActions button { border:0; border-radius:24px; padding:13px 18px; font-weight:700; cursor:pointer; background:#C8FF3D; color:#0B0B12; }
+  .callActions .reject { background:#FF6B8A; }
   /* ---------- Chat ---------- */
   #conv { flex: 1; display: flex; flex-direction: column; min-height: 0; }
   #messages { flex: 1; overflow-y: auto; padding: 8px 16px; display: flex; flex-direction: column; gap: 8px; }
@@ -208,6 +218,8 @@
       <button class="back" id="convBack" type="button" aria-label="Back">&#8592;</button>
       <div class="avatar" id="convAvatar">?</div>
       <div class="title"><b id="convName"></b><small id="convUser"></small></div>
+      <button class="callBtn" id="audioCallBtn" type="button" title="Voice call" aria-label="Voice call">☎</button>
+      <button class="callBtn" id="videoCallBtn" type="button" title="Video call" aria-label="Video call">▣</button>
     </div>
     <div id="messages"></div>
     <div id="typing"></div>
@@ -297,6 +309,13 @@
     <button class="ghost" id="logoutBtn" type="button">Log out</button>
   </form>
 
+</div>
+
+<div id="callOverlay" class="hidden" role="dialog" aria-modal="true" aria-label="Baatein call">
+  <div id="callTitle">Baatein call</div>
+  <div id="callStatus">Connecting…</div>
+  <div id="callVideos"></div>
+  <div class="callActions" id="callActions"></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -429,6 +448,9 @@
     if (socket) { socket.disconnect(); socket = null; }
     // auth ek function hai, taaki reconnect par hamesha taaza token jaye
     socket = io({ auth: (cb) => cb({ token: session && session.access_token }) });
+    socketCallHandlersInstalled = false;
+    // Handlers are registered below once the calling module has initialized.
+    if (typeof installCallSocketHandlers === 'function') installCallSocketHandlers();
 
     socket.on('connect_error', (err) => {
       if (err.message === 'login_required') logout();
@@ -703,7 +725,7 @@
     if (!me) return;
     const [a, b] = await Promise.all([
       sb.from('statuses')
-        .select('id,user_id,kind,text,bg,image_path,created_at,profiles!statuses_user_id_fkey(name,username)')
+        .select('id,user_id,kind,text,bg,image_path,created_at,profiles(name,username)')
         .order('created_at', { ascending: true }).limit(300),
       sb.from('status_views').select('status_id').eq('viewer_id', me),
     ]);
@@ -1024,6 +1046,82 @@
 
   // Token apne aap refresh hota rehta hai, use taaza rakho
   sb.auth.onAuthStateChange((event, s) => { session = s; });
+
+  // ---------------- Voice/video calling (WebRTC mesh) ----------------
+  let activeCall = null; // {id,cid,type,scope,stream,pcs,accepted,initiator}
+  const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
+  function callButton(label, cls, fn) { const b=document.createElement('button'); b.textContent=label; if(cls) b.className=cls; b.onclick=fn; return b; }
+  function callUi(title, status, actions=[]) {
+    $('callTitle').textContent=title; $('callStatus').textContent=status; $('callActions').replaceChildren();
+    actions.forEach(a=>$('callActions').appendChild(callButton(a.label,a.cls,a.fn))); $('callOverlay').classList.remove('hidden');
+  }
+  function closeCallUi() { $('callOverlay').classList.add('hidden'); $('callVideos').replaceChildren(); $('callActions').replaceChildren(); }
+  function addCallVideo(id, stream, muted=false) {
+    let v=document.getElementById('call-video-'+id); if(!v){ v=document.createElement('video'); v.id='call-video-'+id; v.autoplay=true; v.playsInline=true; v.muted=muted; $('callVideos').appendChild(v); }
+    v.srcObject=stream; return v;
+  }
+  async function startCall(type) {
+    if(!socket || !openConvObj || activeCall) return;
+    const scope = openConvObj.is_group ? 'group' : 'one_to_one';
+    if(scope==='group' && !confirm('Group call mein chat ke sabhi members ko invite bheja jayega. Continue?')) return;
+    try {
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:type==='video'});
+      const id=crypto.randomUUID(); activeCall={id,cid:openConvObj.id,type,scope,stream,pcs:new Map(),accepted:new Set([myId()]),initiator:true,participants:new Set([myId()])};
+      addCallVideo('me',stream,true);
+      callUi((type==='video'?'Video':'Voice')+' call', 'Calling '+openConvObj.title+'…', [
+        {label:'Mute mic',fn:()=>toggleCallTrack('audio')}, ...(type==='video'?[{label:'Camera off',fn:()=>toggleCallTrack('video')}]:[]),
+        {label:'End call',cls:'reject',fn:endCall}
+      ]);
+      socket.emit('call:invite',{call_id:id,conversation_id:openConvObj.id,call_type:type,call_scope:scope});
+    } catch(e) { alert('Mic/camera access nahi mila. Browser permission check karo. ' + (e.message||'')); if(activeCall) endCall(); }
+  }
+  function toggleCallTrack(kind) { if(!activeCall) return; const t=activeCall.stream.getTracks().find(x=>x.kind===kind); if(t) {t.enabled=!t.enabled; const btn=[...$('callActions').children].find(b=>b.textContent.toLowerCase().includes(kind==='audio'?'mute':'camera')); if(btn) btn.textContent=kind==='audio'?(t.enabled?'Mute mic':'Unmute mic'):(t.enabled?'Camera off':'Camera on'); } }
+  async function makePeer(targetId) {
+    if(!activeCall || activeCall.pcs.has(targetId)) return activeCall && activeCall.pcs.get(targetId);
+    const pc=new RTCPeerConnection(rtcConfig); activeCall.pcs.set(targetId,pc);
+    activeCall.stream.getTracks().forEach(t=>pc.addTrack(t,activeCall.stream));
+    pc.onicecandidate=e=>{if(e.candidate && socket && activeCall) socket.emit('call:signal',{call_id:activeCall.id,target_id:targetId,signal:{candidate:e.candidate}});};
+    pc.ontrack=e=>{ const stream=e.streams[0]; addCallVideo(targetId,stream,false); };
+    pc.onconnectionstatechange=()=>{ if(pc.connectionState==='failed' || pc.connectionState==='closed') { pc.close(); activeCall?.pcs.delete(targetId); } };
+    return pc;
+  }
+  async function createOfferFor(targetId) {
+    const pc=await makePeer(targetId); if(!pc || !activeCall) return;
+    const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
+    socket.emit('call:signal',{call_id:activeCall.id,target_id:targetId,signal:{description:pc.localDescription}});
+  }
+  function showIncomingCall(info) {
+    if(activeCall) { socket.emit('call:reject',{call_id:info.call_id}); return; }
+    callUi((info.call_type==='video'?'Video':'Voice')+' call', info.caller_name+' is calling you', [
+      {label:'Accept',fn:async()=>{try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:info.call_type==='video'}); activeCall={id:info.call_id,cid:info.conversation_id,type:info.call_type,scope:info.call_scope,stream,pcs:new Map(),accepted:new Set([myId()]),initiator:false,participants:new Set([myId()])}; addCallVideo('me',stream,true); socket.emit('call:accept',{call_id:info.call_id}); callUi('Connected call','Connecting media…',[{label:'Mute mic',fn:()=>toggleCallTrack('audio')},...(info.call_type==='video'?[{label:'Camera off',fn:()=>toggleCallTrack('video')}]:[]),{label:'End call',cls:'reject',fn:endCall}]); }catch(e){socket.emit('call:reject',{call_id:info.call_id});closeCallUi();alert('Mic/camera permission nahi mili.');}}},
+      {label:'Reject',cls:'reject',fn:()=>{socket.emit('call:reject',{call_id:info.call_id});closeCallUi();}}
+    ]);
+  }
+  async function endCall() {
+    if(!activeCall){closeCallUi();return;} const c=activeCall; activeCall=null;
+    try{socket?.emit('call:leave',{call_id:c.id});}catch(_){}
+    c.pcs.forEach(pc=>pc.close()); c.stream.getTracks().forEach(t=>t.stop());
+    closeCallUi();
+  }
+  $('audioCallBtn').onclick=()=>startCall('audio'); $('videoCallBtn').onclick=()=>startCall('video');
+  // Server signals are authenticated and relayed only between members of a conversation call.
+  let socketCallHandlersInstalled = false;
+  function installCallSocketHandlers() {
+    if(!socket || socketCallHandlersInstalled) return; socketCallHandlersInstalled=true;
+    socket.on('call:incoming',showIncomingCall);
+    socket.on('call:error',x=>alert(x.message||'Call start nahi ho saki.'));
+    socket.on('call:peer-accepted',async info=>{if(activeCall && activeCall.id===info.call_id){activeCall.participants.add(info.user_id); if(myId()<info.user_id) await createOfferFor(info.user_id); $('callStatus').textContent='Connecting with '+info.name+'…';}});
+    socket.on('call:accepted',async info=>{if(!activeCall || activeCall.id!==info.call_id)return; activeCall.participants=new Set(info.participants||[myId()]); for(const id of activeCall.participants){if(id!==myId() && myId()<id) await createOfferFor(id);} $('callStatus').textContent='Call in progress';});
+    socket.on('call:participant-joined',async info=>{if(!activeCall || activeCall.id!==info.call_id)return; activeCall.participants.add(info.user_id); if(myId()<info.user_id) await createOfferFor(info.user_id);});
+    socket.on('call:participant-left',info=>{if(activeCall && activeCall.id===info.call_id){const pc=activeCall.pcs.get(info.user_id);if(pc)pc.close();activeCall.pcs.delete(info.user_id);activeCall.participants.delete(info.user_id);const v=document.getElementById('call-video-'+info.user_id);v?.remove();}});
+    socket.on('call:rejected',info=>{if(activeCall && activeCall.id===info.call_id) $('callStatus').textContent=info.name+' declined the call';});
+    socket.on('call:ended',info=>{if(activeCall && activeCall.id===info.call_id) endCall();});
+    socket.on('call:signal',async info=>{
+      if(!activeCall || activeCall.id!==info.call_id)return; const pc=await makePeer(info.from_id); const sig=info.signal||{};
+      try { if(sig.description){await pc.setRemoteDescription(sig.description); if(sig.description.type==='offer'){const answer=await pc.createAnswer();await pc.setLocalDescription(answer);socket.emit('call:signal',{call_id:activeCall.id,target_id:info.from_id,signal:{description:pc.localDescription}});}} else if(sig.candidate){await pc.addIceCandidate(sig.candidate);} } catch(e){console.warn('Call signal error',e);}
+    });
+    socket.on('disconnect',()=>{socketCallHandlersInstalled=false;if(activeCall)endCall();});
+  }
 
   // ---------------- Start ----------------
   (async function start() {
