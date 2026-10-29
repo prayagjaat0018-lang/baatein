@@ -110,6 +110,13 @@
   .msg .text { font-size: 15px; line-height: 1.4; }
   .msg .time { align-self: flex-end; font-size: 11px; color: var(--muted); }
   .msg.mine .time { color: #E4DCFF; }
+  .msg .replyQuote { border-left: 3px solid var(--lime); padding: 5px 8px; margin-bottom: 4px; border-radius: 4px; background: rgba(0,0,0,.13); font-size: 12px; color: #D7D7E8; }
+  .msg .edited { font-size: 10px; color: #D7D7E8; margin-left: 5px; }
+  .msg .msgActions { display:flex; gap:10px; margin-top:3px; opacity:.82; }
+  .msg .msgActions button { border:0; background:transparent; color:inherit; padding:2px 0; font-size:11px; cursor:pointer; text-decoration:underline; }
+  .msg.mine .msgActions { justify-content:flex-end; }
+  .readTicks { color:#D4D4E8; font-size:12px; font-weight:700; margin-left:4px; }
+  .readTicks.read { color:#63D9FF; }
   .system { align-self: center; font-size: 12px; font-weight: 600; color: #B4B5CC; background: var(--card); padding: 6px 12px; border-radius: 999px; }
   .system.bad { color: var(--danger); }
   @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -342,6 +349,9 @@
   let convs = [];       // meri chats
   let openConvObj = null; // abhi khuli chat
   let seen = new Set();   // is chat ke dikh chuke message ids
+  let onlineUserIds = new Set();
+  let peerLastReadAt = null;
+  let replyDraft = null;
   const USERNAME_RE = /^[a-z0-9_.]{3,20}$/;
   const cleanUser = (s) => String(s).toLowerCase().replace(/[^a-z0-9_.]/g, '').slice(0, 20);
   const myId = () => session && session.user.id;
@@ -484,6 +494,28 @@
       }
     });
 
+    socket.on('presence:list', (users) => {
+      onlineUserIds = new Set((users || []).map(u => u.user_id));
+      updateConversationPresence();
+    });
+    socket.on('presence:online', (u) => { onlineUserIds.add(u.user_id); updateConversationPresence(); });
+    socket.on('presence:offline', (u) => { onlineUserIds.delete(u.user_id); updateConversationPresence(); });
+    socket.on('read:receipt', (r) => {
+      if (openConvObj && r.conversation_id === openConvObj.id && r.user_id !== myId()) {
+        peerLastReadAt = r.read_at; refreshReadTicks();
+      }
+    });
+    socket.on('message:updated', (m) => {
+      const el = document.querySelector('[data-message-id="' + String(m.id) + '"]');
+      if (el) { const tx = el.querySelector('.text'); if (tx) tx.textContent = m.text; let ed = el.querySelector('.edited'); if (!ed) { ed = document.createElement('span'); ed.className = 'edited'; el.querySelector('.time')?.appendChild(ed); } ed.textContent = 'edited'; }
+      const c = convs.find(x => x.id === m.conversation_id); if (c) { c.last_text = m.text.slice(0,80); if (current === 'list') renderList(); }
+    });
+    socket.on('message:deleted', (m) => {
+      const el = document.querySelector('[data-message-id="' + String(m.id) + '"]'); if (el) el.remove();
+      const c = convs.find(x => x.id === m.conversation_id); if (c && current === 'list') loadList();
+    });
+    socket.on('message:action-failed', (a) => alert((a.action === 'edit' ? 'Message edit' : 'Message delete') + ' nahi hua. SQL migration aur connection check karo.'));
+
     socket.on('send_failed', () => {
       if (current !== 'conv') return;
       const el = document.createElement('div');
@@ -527,6 +559,7 @@
         is_group: r.conversations.is_group,
         title: r.conversations.is_group ? (r.conversations.name || 'Group') : (p.name || 'Unknown'),
         username: p.username || '',
+        other_user_id: p.id || null,
         last_text: r.conversations.last_text || '',
         last_message_at: r.conversations.last_message_at,
         unread: 0,
@@ -545,7 +578,7 @@
 
   // Chat padh li = server ko batao
   function markRead(cid) {
-    sb.rpc('mark_read', { cid }).then(() => {}, () => {});
+    sb.rpc('mark_read', { cid }).then(() => { if (socket) socket.emit('read:conversation', { conversation_id: cid }); }, () => {});
   }
 
   function renderList() {
@@ -600,17 +633,25 @@
     markRead(c.id);
     show('conv');
     $('convName').textContent = c.title;
-    $('convUser').textContent = c.username ? '@' + c.username : '';
+    $('convUser').textContent = c.is_group ? 'Group chat' : (c.username ? '@' + c.username : '');
+    updateConversationPresence();
+    peerLastReadAt = null;
+    if (!c.is_group) {
+      const pr = await sb.from('conversation_members').select('last_read_at').eq('conversation_id', c.id).neq('user_id', myId()).maybeSingle();
+      if (pr.data) peerLastReadAt = pr.data.last_read_at;
+    }
     paintAvatar($('convAvatar'), c.title);
     $('messages').innerHTML = '';
     $('typing').textContent = '';
     const { data } = await sb.from('chat_messages')
-      .select('id,sender_id,text,created_at')
+      .select('id,sender_id,text,created_at,reply_to,edited_at')
       .eq('conversation_id', c.id)
       .order('created_at', { ascending: false })
       .limit(100);
     if (!openConvObj || openConvObj.id !== c.id) return;
-    (data || []).reverse().forEach((r) => addMessage({ id: r.id, sender_id: r.sender_id, text: r.text, time: new Date(r.created_at).getTime() }));
+    (data || []).reverse().forEach((r) => addMessage({ id: r.id, sender_id: r.sender_id, text: r.text, reply_to: r.reply_to, edited_at: r.edited_at, created_at: r.created_at, time: new Date(r.created_at).getTime() }));
+    refreshReadTicks();
+    markRead(c.id);
     scrollDown();
     $('msgInput').focus();
   }
@@ -620,14 +661,42 @@
     const mine = m.sender_id === myId();
     const box = document.createElement('div');
     box.className = 'msg' + (mine ? ' mine' : '');
-    const text = document.createElement('span');
-    text.className = 'text';
-    text.textContent = m.text; // textContent = safe, koi HTML nahi chalega
-    const time = document.createElement('span');
-    time.className = 'time';
+    if (m.id != null) box.dataset.messageId = String(m.id);
+    if (m.created_at) box.dataset.createdAt = m.created_at; else if (m.time) box.dataset.createdAt = new Date(m.time).toISOString();
+    if (m.reply_to) {
+      const quote = document.createElement('div'); quote.className = 'replyQuote'; const original = document.querySelector('[data-message-id="' + String(m.reply_to) + '"] .text'); quote.textContent = '↳ ' + (original ? original.textContent.slice(0, 100) : ('Reply to message #' + m.reply_to)); box.appendChild(quote);
+    }
+    const text = document.createElement('span'); text.className = 'text'; text.textContent = m.text;
+    const time = document.createElement('span'); time.className = 'time';
     time.textContent = new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (m.edited_at) { const ed=document.createElement('span'); ed.className='edited'; ed.textContent='edited'; time.appendChild(ed); }
+    if (mine && m.id != null) { const ticks=document.createElement('span'); ticks.className='readTicks'; ticks.dataset.tickFor=String(m.id); ticks.textContent='✓✓'; ticks.title='Sent'; if (peerLastReadAt && m.created_at && new Date(peerLastReadAt) >= new Date(m.created_at)) { ticks.classList.add('read'); ticks.title='Read'; } time.appendChild(ticks); }
     box.appendChild(text); box.appendChild(time);
+    if (m.id != null) {
+      const actions=document.createElement('div'); actions.className='msgActions';
+      const reply=document.createElement('button'); reply.type='button'; reply.textContent='Reply'; reply.onclick=()=>{ replyDraft={id:m.id,text:m.text}; $('msgInput').placeholder='Replying to: '+m.text.slice(0,45); $('msgInput').focus(); }; actions.appendChild(reply);
+      if (mine) {
+        const edit=document.createElement('button'); edit.type='button'; edit.textContent='Edit'; edit.onclick=()=>{ const updated=prompt('Message edit karo:',m.text); if(updated===null || !updated.trim() || updated.trim()===m.text) return; socket?.emit('message:edit',{id:m.id,conversation_id:openConvObj?.id,text:updated.trim()}); }; actions.appendChild(edit);
+        const del=document.createElement('button'); del.type='button'; del.textContent='Delete'; del.onclick=()=>{ if(confirm('Is message ko sabke liye delete karein?')) socket?.emit('message:delete',{id:m.id,conversation_id:openConvObj?.id}); }; actions.appendChild(del);
+      }
+      box.appendChild(actions);
+    }
     $('messages').appendChild(box);
+  }
+  function refreshReadTicks() {
+    document.querySelectorAll('#messages .readTicks').forEach(t => {
+      const msg = t.closest('.msg'); const tm = msg?.querySelector('.time');
+      const timeText = tm?.firstChild?.textContent || '';
+      // Read state is refreshed after loading messages; individual timestamps are tracked in data attributes below.
+      const created = msg?.dataset.createdAt;
+      const read = !!(peerLastReadAt && created && new Date(peerLastReadAt) >= new Date(created));
+      t.classList.toggle('read', read); t.title = read ? 'Read' : 'Sent';
+    });
+  }
+  function updateConversationPresence() {
+    if (!openConvObj) return;
+    if (openConvObj.is_group) $('convUser').textContent = 'Group chat';
+    else $('convUser').textContent = (openConvObj.username ? '@' + openConvObj.username + ' · ' : '') + (onlineUserIds.has(openConvObj.other_user_id) ? 'online' : 'offline');
   }
   function scrollDown() { $('messages').scrollTop = $('messages').scrollHeight; }
 
@@ -638,8 +707,8 @@
     const text = $('msgInput').value.trim();
     if (!text || !socket || !openConvObj) return;
     const { data } = await sb.auth.getSession(); // taaza token
-    socket.emit('message', { conversation_id: openConvObj.id, text, token: data.session && data.session.access_token });
-    $('msgInput').value = '';
+    socket.emit('message', { conversation_id: openConvObj.id, text, reply_to: replyDraft && replyDraft.id, token: data.session && data.session.access_token });
+    $('msgInput').value = ''; replyDraft = null; $('msgInput').placeholder = 'Say something...';
   });
 
   let lastTyping = 0;

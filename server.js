@@ -15,6 +15,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // ---- WebRTC calling signalling (media travels peer-to-peer; server only relays setup messages) ----
 const activeCalls = new Map(); // callId -> { conversationId, hostId, participants:Set<userId>, type, scope }
+const onlineUsers = new Map(); // uid -> { name, sockets:Set<socketId> }
 async function getConversationMemberIds(conversationId, token) {
   const r = await sb('/rest/v1/conversation_members?conversation_id=eq.' + encodeURIComponent(conversationId) + '&select=user_id', token);
   if (!r.ok) return null;
@@ -73,6 +74,14 @@ io.on('connection', async (socket) => {
   // Mera apna "kamra" (taaki mere saare devices ko message mile)
   socket.join('user:' + uid);
 
+  // Online presence: ek user ke multiple tabs/devices ko support karo.
+  let presence = onlineUsers.get(uid);
+  const wasOnline = !!presence;
+  if (!presence) { presence = { name, sockets: new Set() }; onlineUsers.set(uid, presence); }
+  presence.sockets.add(socket.id);
+  socket.emit('presence:list', [...onlineUsers.entries()].map(([user_id, v]) => ({ user_id, name: v.name })));
+  if (!wasOnline) socket.broadcast.emit('presence:online', { user_id: uid, name });
+
   // Meri saari chats ke kamre join karo
   try {
     const r = await sb('/rest/v1/conversation_members?user_id=eq.' + uid + '&select=conversation_id', token);
@@ -88,10 +97,14 @@ io.on('connection', async (socket) => {
 
     try {
       // Database me save (rules khud check karte hain ki main is chat ka member hoon)
+      const replyToRaw = payload && payload.reply_to;
+      const reply_to = Number.isSafeInteger(Number(replyToRaw)) && Number(replyToRaw) > 0 ? Number(replyToRaw) : null;
+      const rowBody = { conversation_id: cid, sender_id: uid, text };
+      if (reply_to) rowBody.reply_to = reply_to;
       const r = await sb('/rest/v1/chat_messages', t, {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({ conversation_id: cid, sender_id: uid, text }),
+        body: JSON.stringify(rowBody),
       });
       if (!r.ok) { socket.emit('send_failed', { conversation_id: cid }); return; }
       const row = (await r.json())[0];
@@ -107,11 +120,47 @@ io.on('connection', async (socket) => {
         conversation_id: cid,
         sender_id: uid,
         text: row.text,
+        reply_to: row.reply_to || null,
+        edited_at: row.edited_at || null,
+        created_at: row.created_at,
         time: new Date(row.created_at).getTime(),
       });
     } catch (e) {
       socket.emit('send_failed', { conversation_id: cid });
     }
+  });
+
+  // Message edit/delete: server enforces sender ownership; database RLS is a second guard.
+  socket.on('message:edit', async (payload = {}) => {
+    const id = Number(payload.id); const text = String(payload.text || '').trim().slice(0, 500);
+    const cid = String(payload.conversation_id || '');
+    if (!Number.isSafeInteger(id) || id <= 0 || !UUID.test(cid) || !text || !(await isMember(cid, uid, token))) return;
+    try {
+      const r = await sb('/rest/v1/chat_messages?id=eq.' + id + '&conversation_id=eq.' + cid + '&sender_id=eq.' + uid, token, {
+        method: 'PATCH', headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ text, edited_at: new Date().toISOString() }),
+      });
+      if (!r.ok) { socket.emit('message:action-failed', { action: 'edit' }); return; }
+      const rows = await r.json(); if (!rows.length) return;
+      io.to('conv:' + cid).emit('message:updated', { id: rows[0].id, conversation_id: cid, sender_id: uid, text: rows[0].text, edited_at: rows[0].edited_at });
+    } catch (_) { socket.emit('message:action-failed', { action: 'edit' }); }
+  });
+
+  socket.on('message:delete', async (payload = {}) => {
+    const id = Number(payload.id); const cid = String(payload.conversation_id || '');
+    if (!Number.isSafeInteger(id) || id <= 0 || !UUID.test(cid) || !(await isMember(cid, uid, token))) return;
+    try {
+      const r = await sb('/rest/v1/chat_messages?id=eq.' + id + '&conversation_id=eq.' + cid + '&sender_id=eq.' + uid, token, { method: 'DELETE', headers: { Prefer: 'return=representation' } });
+      if (!r.ok) { socket.emit('message:action-failed', { action: 'delete' }); return; }
+      const rows = await r.json(); if (rows.length) io.to('conv:' + cid).emit('message:deleted', { id: rows[0].id, conversation_id: cid, sender_id: uid });
+    } catch (_) { socket.emit('message:action-failed', { action: 'delete' }); }
+  });
+
+  // Read receipts are based on conversation_members.last_read_at.
+  socket.on('read:conversation', async (payload = {}) => {
+    const cid = String(payload.conversation_id || '');
+    if (!UUID.test(cid) || !(await isMember(cid, uid, token))) return;
+    io.to('conv:' + cid).emit('read:receipt', { conversation_id: cid, user_id: uid, read_at: new Date().toISOString() });
   });
 
   // Call invite: verify that the caller belongs to the conversation before notifying others.
@@ -170,8 +219,15 @@ io.on('connection', async (socket) => {
   });
 
   // "typing..." (sirf us chat ke dusre log dekhenge)
-  socket.on('typing', (cid) => {
-    if (UUID.test(String(cid))) socket.to('conv:' + cid).emit('typing', { conversation_id: cid, name });
+  socket.on('typing', async (cid) => {
+    if (UUID.test(String(cid)) && await isMember(String(cid), uid, token)) socket.to('conv:' + cid).emit('typing', { conversation_id: cid, name });
+  });
+
+  socket.on('disconnect', () => {
+    const current = onlineUsers.get(uid);
+    if (!current) return;
+    current.sockets.delete(socket.id);
+    if (current.sockets.size === 0) { onlineUsers.delete(uid); io.emit('presence:offline', { user_id: uid }); }
   });
 });
 
