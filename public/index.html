@@ -121,7 +121,11 @@
   .system.bad { color: var(--danger); }
   @keyframes pop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   #typing { height: 20px; padding: 0 20px; font-size: 12px; font-weight: 600; color: var(--lime); }
-  form#send { display: flex; gap: 8px; padding: 6px 12px 20px; }
+  form#send { display: flex; gap: 8px; padding: 6px 12px 20px; align-items:center; }
+  .attachBtn { width:42px; height:46px; border:1px solid var(--line); border-radius:14px; background:var(--card); color:var(--text); cursor:pointer; font-size:19px; flex-shrink:0; }
+  .mediaPreview { max-width: min(260px, 65vw); max-height: 260px; border-radius:12px; display:block; object-fit:contain; }
+  .voicePlayer { width:min(260px,65vw); }
+  .uploadNote { font-size:12px; color:var(--muted); padding:0 14px 5px; }
   form#send input { flex: 1; min-width: 0; }
   form#send button { width: 56px; height: 56px; border: 0; border-radius: 50%; background: var(--lime); cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
@@ -230,7 +234,11 @@
     </div>
     <div id="messages"></div>
     <div id="typing"></div>
+    <div id="uploadNote" class="uploadNote" aria-live="polite"></div>
     <form id="send" autocomplete="off">
+      <input id="fileInput" type="file" accept="image/*,video/*,.pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip" hidden>
+      <button class="attachBtn" id="attachBtn" type="button" title="Photo, video or document" aria-label="Attach file">＋</button>
+      <button class="attachBtn" id="voiceBtn" type="button" title="Record voice note" aria-label="Record voice note">🎙</button>
       <input id="msgInput" type="text" maxlength="500" placeholder="Say something..." aria-label="Message">
       <button type="submit" aria-label="Send">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B0B12" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
@@ -644,12 +652,12 @@
     $('messages').innerHTML = '';
     $('typing').textContent = '';
     const { data } = await sb.from('chat_messages')
-      .select('id,sender_id,text,created_at,reply_to,edited_at')
+      .select('id,sender_id,text,created_at,reply_to,edited_at,attachment_path,attachment_name,attachment_mime,attachment_size')
       .eq('conversation_id', c.id)
       .order('created_at', { ascending: false })
       .limit(100);
     if (!openConvObj || openConvObj.id !== c.id) return;
-    (data || []).reverse().forEach((r) => addMessage({ id: r.id, sender_id: r.sender_id, text: r.text, reply_to: r.reply_to, edited_at: r.edited_at, created_at: r.created_at, time: new Date(r.created_at).getTime() }));
+    (data || []).reverse().forEach((r) => addMessage({ id: r.id, sender_id: r.sender_id, text: r.text, reply_to: r.reply_to, edited_at: r.edited_at, attachment_path:r.attachment_path, attachment_name:r.attachment_name, attachment_mime:r.attachment_mime, attachment_size:r.attachment_size, created_at: r.created_at, time: new Date(r.created_at).getTime() }));
     refreshReadTicks();
     markRead(c.id);
     scrollDown();
@@ -666,12 +674,13 @@
     if (m.reply_to) {
       const quote = document.createElement('div'); quote.className = 'replyQuote'; const original = document.querySelector('[data-message-id="' + String(m.reply_to) + '"] .text'); quote.textContent = '↳ ' + (original ? original.textContent.slice(0, 100) : ('Reply to message #' + m.reply_to)); box.appendChild(quote);
     }
-    const text = document.createElement('span'); text.className = 'text'; text.textContent = m.text;
+    if (m.attachment_path) renderAttachment(box, m);
+    if (m.text) { const text = document.createElement('span'); text.className = 'text'; text.textContent = m.text; box.appendChild(text); }
     const time = document.createElement('span'); time.className = 'time';
     time.textContent = new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     if (m.edited_at) { const ed=document.createElement('span'); ed.className='edited'; ed.textContent='edited'; time.appendChild(ed); }
     if (mine && m.id != null) { const ticks=document.createElement('span'); ticks.className='readTicks'; ticks.dataset.tickFor=String(m.id); ticks.textContent='✓✓'; ticks.title='Sent'; if (peerLastReadAt && m.created_at && new Date(peerLastReadAt) >= new Date(m.created_at)) { ticks.classList.add('read'); ticks.title='Read'; } time.appendChild(ticks); }
-    box.appendChild(text); box.appendChild(time);
+    box.appendChild(time);
     if (m.id != null) {
       const actions=document.createElement('div'); actions.className='msgActions';
       const reply=document.createElement('button'); reply.type='button'; reply.textContent='Reply'; reply.onclick=()=>{ replyDraft={id:m.id,text:m.text}; $('msgInput').placeholder='Replying to: '+m.text.slice(0,45); $('msgInput').focus(); }; actions.appendChild(reply);
@@ -683,6 +692,52 @@
     }
     $('messages').appendChild(box);
   }
+  async function renderAttachment(box, m) {
+    const { data, error } = await sb.storage.from('chat-media').createSignedUrl(m.attachment_path, 3600);
+    if (error || !data?.signedUrl) { const note=document.createElement('div'); note.textContent='Attachment unavailable'; box.insertBefore(note, box.querySelector('.time')); return; }
+    const url=data.signedUrl, mime=m.attachment_mime || '', name=m.attachment_name || 'Attachment';
+    let el;
+    if (mime.startsWith('image/')) { el=document.createElement('img'); el.className='mediaPreview'; el.alt=name; el.src=url; }
+    else if (mime.startsWith('video/')) { el=document.createElement('video'); el.className='mediaPreview'; el.controls=true; el.preload='metadata'; el.src=url; }
+    else if (mime.startsWith('audio/')) { el=document.createElement('audio'); el.className='voicePlayer'; el.controls=true; el.src=url; }
+    else { el=document.createElement('a'); el.href=url; el.target='_blank'; el.rel='noopener'; el.textContent='📎 '+name; }
+    box.insertBefore(el, box.querySelector('.time'));
+  }
+  const fileInput = $('fileInput');
+  $('attachBtn').addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', async () => {
+    const file=fileInput.files && fileInput.files[0]; fileInput.value='';
+    if (!file || !openConvObj) return;
+    if (file.size > 20*1024*1024) { alert('File 20 MB se chhoti honi chahiye.'); return; }
+    await uploadChatFile(file, file.type || 'application/octet-stream');
+  });
+  async function uploadChatFile(file, mime) {
+    if (!openConvObj || !socket) return;
+    const { data: auth } = await sb.auth.getSession();
+    if (!auth.session) { alert('Dobara login karo.'); return; }
+    const cid=openConvObj.id, uid=myId();
+    const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'_').slice(-90) || 'file';
+    const path=cid+'/'+uid+'/'+crypto.randomUUID()+'_'+safeName;
+    $('uploadNote').textContent='Uploading '+safeName+'…';
+    const { error } = await sb.storage.from('chat-media').upload(path,file,{contentType:mime,upsert:false});
+    if (error) { $('uploadNote').textContent=''; alert('Upload nahi hua: '+error.message+' — Supabase media SQL check karo.'); return; }
+    socket.emit('message',{conversation_id:cid,text:'',attachment_path:path,attachment_name:safeName,attachment_mime:mime,attachment_size:file.size,token:auth.session.access_token});
+    $('uploadNote').textContent='';
+  }
+  let mediaRecorder=null, voiceChunks=[];
+  $('voiceBtn').addEventListener('click', async () => {
+    if (mediaRecorder && mediaRecorder.state==='recording') { mediaRecorder.stop(); $('voiceBtn').textContent='🎙'; $('voiceBtn').title='Record voice note'; return; }
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { alert('Is browser mein voice recording supported nahi hai.'); return; }
+    try {
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+      const options=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?{mimeType:'audio/webm;codecs=opus'}:{};
+      mediaRecorder=new MediaRecorder(stream,options); voiceChunks=[];
+      mediaRecorder.ondataavailable=e=>{if(e.data.size)voiceChunks.push(e.data);};
+      mediaRecorder.onstop=async()=>{ stream.getTracks().forEach(t=>t.stop()); const blob=new Blob(voiceChunks,{type:mediaRecorder.mimeType||'audio/webm'}); if(blob.size>20*1024*1024){alert('Voice note 20 MB se badi hai.');return;} const yes=confirm('Voice note send karein?'); if(yes) await uploadChatFile(new File([blob],'voice-note.webm',{type:blob.type}),blob.type); };
+      mediaRecorder.start(); $('voiceBtn').textContent='■'; $('voiceBtn').title='Stop recording';
+    } catch(e) { alert('Microphone permission nahi mili: '+e.message); }
+  });
+
   function refreshReadTicks() {
     document.querySelectorAll('#messages .readTicks').forEach(t => {
       const msg = t.closest('.msg'); const tm = msg?.querySelector('.time');

@@ -92,15 +92,22 @@ io.on('connection', async (socket) => {
   socket.on('message', async (payload) => {
     const cid = String((payload && payload.conversation_id) || '');
     const text = String((payload && payload.text) || '').trim().slice(0, 500);
-    if (!UUID.test(cid) || !text) return;
+    const attachmentPath = String((payload && payload.attachment_path) || '');
+    const attachmentName = String((payload && payload.attachment_name) || '').slice(0, 120);
+    const attachmentMime = String((payload && payload.attachment_mime) || '').slice(0, 120);
+    const attachmentSize = Number(payload && payload.attachment_size) || 0;
+    const hasAttachment = !!attachmentPath;
+    if (!UUID.test(cid) || (!text && !hasAttachment)) return;
+    if (hasAttachment && (!attachmentPath.startsWith(cid + '/' + uid + '/') || attachmentPath.length > 500 || attachmentSize < 1 || attachmentSize > 20*1024*1024)) return;
     const t = (payload && payload.token) || token;
 
     try {
       // Database me save (rules khud check karte hain ki main is chat ka member hoon)
       const replyToRaw = payload && payload.reply_to;
       const reply_to = Number.isSafeInteger(Number(replyToRaw)) && Number(replyToRaw) > 0 ? Number(replyToRaw) : null;
-      const rowBody = { conversation_id: cid, sender_id: uid, text };
+      const rowBody = { conversation_id: cid, sender_id: uid, text: text || '' };
       if (reply_to) rowBody.reply_to = reply_to;
+      if (hasAttachment) { rowBody.attachment_path = attachmentPath; rowBody.attachment_name = attachmentName; rowBody.attachment_mime = attachmentMime; rowBody.attachment_size = attachmentSize; }
       const r = await sb('/rest/v1/chat_messages', t, {
         method: 'POST',
         headers: { Prefer: 'return=representation' },
@@ -120,6 +127,7 @@ io.on('connection', async (socket) => {
         conversation_id: cid,
         sender_id: uid,
         text: row.text,
+        attachment_path: row.attachment_path || null, attachment_name: row.attachment_name || null, attachment_mime: row.attachment_mime || null, attachment_size: row.attachment_size || null,
         reply_to: row.reply_to || null,
         edited_at: row.edited_at || null,
         created_at: row.created_at,
