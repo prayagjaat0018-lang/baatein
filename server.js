@@ -12,6 +12,19 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_BwWzLpbMD_R2ZK1
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+
+// ---- WebRTC calling signalling (media travels peer-to-peer; server only relays setup messages) ----
+const activeCalls = new Map(); // callId -> { conversationId, hostId, participants:Set<userId>, type, scope }
+async function getConversationMemberIds(conversationId, token) {
+  const r = await sb('/rest/v1/conversation_members?conversation_id=eq.' + encodeURIComponent(conversationId) + '&select=user_id', token);
+  if (!r.ok) return null;
+  return (await r.json()).map(x => x.user_id);
+}
+async function isMember(conversationId, uid, token) {
+  const ids = await getConversationMemberIds(conversationId, token);
+  return !!ids && ids.includes(uid);
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -98,6 +111,61 @@ io.on('connection', async (socket) => {
       });
     } catch (e) {
       socket.emit('send_failed', { conversation_id: cid });
+    }
+  });
+
+  // Call invite: verify that the caller belongs to the conversation before notifying others.
+  socket.on('call:invite', async (payload = {}) => {
+    const cid = String(payload.conversation_id || '');
+    const callId = String(payload.call_id || '');
+    const type = payload.call_type === 'video' ? 'video' : 'audio';
+    const scope = payload.call_scope === 'group' ? 'group' : 'one_to_one';
+    if (!UUID.test(cid) || !UUID.test(callId) || !(await isMember(cid, uid, token))) return;
+    const ids = await getConversationMemberIds(cid, token);
+    if (!ids || ids.length < 2) { socket.emit('call:error', { message: 'Is chat mein call karne ke liye doosra member nahi mila.' }); return; }
+    const call = { conversationId: cid, hostId: uid, participants: new Set([uid]), type, scope, token, startedAt: Date.now() };
+    activeCalls.set(callId, call);
+    for (const targetId of ids) {
+      if (targetId === uid) continue;
+      io.to('user:' + targetId).emit('call:incoming', { call_id: callId, conversation_id: cid, caller_id: uid, caller_name: name, call_type: type, call_scope: scope });
+    }
+    socket.emit('call:started', { call_id: callId });
+  });
+
+  socket.on('call:accept', async (payload = {}) => {
+    const callId = String(payload.call_id || ''); const call = activeCalls.get(callId);
+    if (!call || !(await isMember(call.conversationId, uid, token))) return;
+    call.participants.add(uid);
+    const participantList = [...call.participants];
+    for (const id of participantList) {
+      if (id === uid) continue;
+      io.to('user:' + id).emit('call:participant-joined', { call_id: callId, user_id: uid, name });
+    }
+    socket.emit('call:accepted', { call_id: callId, conversation_id: call.conversationId, participants: participantList, call_type: call.type, call_scope: call.scope });
+    // The host needs the accept notification even if the accepting user is remote.
+    io.to('user:' + call.hostId).emit('call:peer-accepted', { call_id: callId, user_id: uid, name });
+  });
+
+  socket.on('call:signal', async (payload = {}) => {
+    const callId = String(payload.call_id || ''); const targetId = String(payload.target_id || '');
+    const call = activeCalls.get(callId);
+    if (!call || !call.participants.has(uid) || !call.participants.has(targetId)) return;
+    io.to('user:' + targetId).emit('call:signal', { call_id: callId, from_id: uid, signal: payload.signal });
+  });
+
+  socket.on('call:reject', (payload = {}) => {
+    const callId = String(payload.call_id || ''); const call = activeCalls.get(callId);
+    if (call) io.to('user:' + call.hostId).emit('call:rejected', { call_id: callId, user_id: uid, name });
+  });
+
+  socket.on('call:leave', (payload = {}) => {
+    const callId = String(payload.call_id || ''); const call = activeCalls.get(callId);
+    if (!call) return;
+    call.participants.delete(uid);
+    for (const id of call.participants) io.to('user:' + id).emit('call:participant-left', { call_id: callId, user_id: uid });
+    if (call.participants.size < 2 || uid === call.hostId) {
+      for (const id of call.participants) io.to('user:' + id).emit('call:ended', { call_id: callId });
+      activeCalls.delete(callId);
     }
   });
 
