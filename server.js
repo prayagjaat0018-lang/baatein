@@ -5,10 +5,26 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const webpush = require('web-push');
 
 // Ye dono public hain (publishable key chhupani nahi padti). Render me env se bhi de sakte ho.
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://qvmvquirpifymtbjhszf.supabase.co';
 const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_BwWzLpbMD_R2ZK1zWf8ugQ_Z7LqC9MJ';
+
+// ---- Push notifications (app band ho tab bhi message/call ki notification) ----
+// Render > Environment me ye 3 cheezein daalni hain (README me steps hain):
+//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (jaise mailto:tumhari@email.com)
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || '';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || '';
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || 'mailto:admin@example.com';
+const PUSH_ON = !!(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+if (PUSH_ON) {
+  try { webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY); }
+  catch (e) { console.warn('VAPID keys galat hain, push band:', e.message); }
+} else {
+  console.log('Push notifications band hain (VAPID keys set nahi hain).');
+}
+const RING_SECONDS = 45; // itni der baad "missed call"
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -26,11 +42,79 @@ async function isMember(conversationId, uid, token) {
   return !!ids && ids.includes(uid);
 }
 
+// Chat ke baaki members ko push bhejo (database function push_targets se unki subscriptions milti hain)
+async function pushToOthers(cid, token, payload, forCall) {
+  if (!PUSH_ON) return;
+  try {
+    const r = await sb('/rest/v1/rpc/push_targets', token, { method: 'POST', body: JSON.stringify({ cid, for_call: !!forCall }) });
+    if (!r.ok) return;
+    const rows = await r.json();
+    await Promise.all(rows.map((row) => sendPush(row, payload, token, forCall)));
+  } catch (e) { /* push fail hua to chat chalti rahe */ }
+}
+// Kuch khaas users ko push (call ke liye)
+async function pushToUsers(cid, token, userIds, payload, forCall) {
+  if (!PUSH_ON || !userIds.length) return;
+  try {
+    const r = await sb('/rest/v1/rpc/push_targets', token, { method: 'POST', body: JSON.stringify({ cid, for_call: !!forCall }) });
+    if (!r.ok) return;
+    const want = new Set(userIds);
+    const rows = (await r.json()).filter((x) => want.has(x.user_id));
+    await Promise.all(rows.map((row) => sendPush(row, payload, token, forCall)));
+  } catch (e) {}
+}
+async function sendPush(row, payload, token, forCall) {
+  try {
+    await webpush.sendNotification(
+      { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
+      JSON.stringify(payload),
+      { TTL: forCall ? RING_SECONDS : 86400, urgency: 'high' }
+    );
+  } catch (e) {
+    if (e && (e.statusCode === 404 || e.statusCode === 410)) {
+      // Ye device ab valid nahi - list se hata do
+      sb('/rest/v1/rpc/drop_push_sub', token, { method: 'POST', body: JSON.stringify({ ep: row.endpoint }) }).catch(() => {});
+    }
+  }
+}
+function previewOf(text, mime, name) {
+  if (text) return text.slice(0, 140);
+  if (mime && mime.startsWith('image/')) return '📷 Photo';
+  if (mime && mime.startsWith('audio/')) return '🎤 Voice message';
+  if (mime && mime.startsWith('video/')) return '🎬 Video';
+  return '📎 ' + (name || 'File');
+}
+
+// Call khatam/cancel/miss: sabko batao, phone ki ringing notification ko "Missed call" se badlo
+function finishRinging(callId, call, reason) {
+  if (call.ringTimer) { clearTimeout(call.ringTimer); call.ringTimer = null; }
+  call.ringing = false;
+  if (call.invited) {
+    for (const id of call.invited) io.to('user:' + id).emit('call:ended', { call_id: callId, reason });
+  }
+  io.to('user:' + call.hostId).emit('call:ended', { call_id: callId, reason });
+  if (call.invited && call.invited.size) {
+    pushToUsers(call.conversationId, call.token, [...call.invited], {
+      type: 'missed', call_id: callId, conversation_id: call.conversationId,
+      title: 'Missed ' + (call.type === 'video' ? 'video' : 'voice') + ' call',
+      body: (call.hostName || 'Someone') + ' ne call kiya tha',
+      call_type: call.type,
+    }, true);
+  }
+  activeCalls.delete(callId);
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.static('public'));
+
+// Browser ko batao ki push ke liye public key kya hai
+app.get('/api/push-key', (req, res) => {
+  if (!PUSH_ON) return res.status(404).json({ error: 'push_not_configured' });
+  res.json({ key: VAPID_PUBLIC_KEY });
+});
 
 // Supabase se baat karne ka helper (user ke apne token ke saath, to database ke rules lagte hain)
 function sb(path, token, options = {}) {
@@ -81,6 +165,13 @@ io.on('connection', async (socket) => {
   presence.sockets.add(socket.id);
   socket.emit('presence:list', [...onlineUsers.entries()].map(([user_id, v]) => ({ user_id, name: v.name })));
   if (!wasOnline) socket.broadcast.emit('presence:online', { user_id: uid, name });
+
+  // Agar mere liye call abhi ring ho rahi hai (jaise notification dabake app khola), to dobara dikhao
+  for (const [callId, c] of activeCalls) {
+    if (c.ringing && c.invited && c.invited.has(uid)) {
+      socket.emit('call:incoming', { call_id: callId, conversation_id: c.conversationId, caller_id: c.hostId, caller_name: c.hostName, call_type: c.type, call_scope: c.scope });
+    }
+  }
 
   // Meri saari chats ke kamre join karo
   try {
@@ -133,6 +224,12 @@ io.on('connection', async (socket) => {
         created_at: row.created_at,
         time: new Date(row.created_at).getTime(),
       });
+
+      // App band ho tab bhi dusre members ko notification
+      pushToOthers(cid, t, {
+        type: 'message', conversation_id: cid, message_id: row.id,
+        title: name, body: previewOf(row.text, row.attachment_mime, row.attachment_name),
+      }, false);
     } catch (e) {
       socket.emit('send_failed', { conversation_id: cid });
     }
@@ -180,19 +277,30 @@ io.on('connection', async (socket) => {
     if (!UUID.test(cid) || !UUID.test(callId) || !(await isMember(cid, uid, token))) return;
     const ids = await getConversationMemberIds(cid, token);
     if (!ids || ids.length < 2) { socket.emit('call:error', { message: 'Is chat mein call karne ke liye doosra member nahi mila.' }); return; }
-    const call = { conversationId: cid, hostId: uid, participants: new Set([uid]), type, scope, token, startedAt: Date.now() };
+    const invited = new Set(ids.filter((x) => x !== uid));
+    const call = { conversationId: cid, hostId: uid, hostName: name, participants: new Set([uid]), invited, ringing: true, ringTimer: null, type, scope, token, startedAt: Date.now() };
     activeCalls.set(callId, call);
-    for (const targetId of ids) {
-      if (targetId === uid) continue;
+    for (const targetId of invited) {
       io.to('user:' + targetId).emit('call:incoming', { call_id: callId, conversation_id: cid, caller_id: uid, caller_name: name, call_type: type, call_scope: scope });
     }
     socket.emit('call:started', { call_id: callId });
+    // Jo log offline/app band hain unhe phone par ringing notification
+    pushToUsers(cid, token, [...invited], {
+      type: 'call', call_id: callId, conversation_id: cid, call_type: type, call_scope: scope,
+      title: name + (type === 'video' ? ' – video call' : ' – voice call'),
+      body: 'Incoming ' + (type === 'video' ? 'video' : 'voice') + ' call… tap karke uthao',
+    }, true);
+    // Koi na uthaye to missed call
+    call.ringTimer = setTimeout(() => { const c = activeCalls.get(callId); if (c && c.ringing) finishRinging(callId, c, 'missed'); }, RING_SECONDS * 1000);
   });
 
   socket.on('call:accept', async (payload = {}) => {
     const callId = String(payload.call_id || ''); const call = activeCalls.get(callId);
     if (!call || !(await isMember(call.conversationId, uid, token))) return;
     call.participants.add(uid);
+    if (call.ringing) { call.ringing = false; if (call.ringTimer) { clearTimeout(call.ringTimer); call.ringTimer = null; } }
+    // Mere baaki devices par ringing band karo
+    io.to('user:' + uid).emit('call:handled', { call_id: callId });
     const participantList = [...call.participants];
     for (const id of participantList) {
       if (id === uid) continue;
@@ -212,12 +320,23 @@ io.on('connection', async (socket) => {
 
   socket.on('call:reject', (payload = {}) => {
     const callId = String(payload.call_id || ''); const call = activeCalls.get(callId);
-    if (call) io.to('user:' + call.hostId).emit('call:rejected', { call_id: callId, user_id: uid, name });
+    if (!call) return;
+    io.to('user:' + uid).emit('call:handled', { call_id: callId });
+    io.to('user:' + call.hostId).emit('call:rejected', { call_id: callId, user_id: uid, name });
+    if (call.invited) call.invited.delete(uid);
+    // 1-to-1 me reject = call khatam. Group me baaki log abhi uth sakte hain.
+    if (call.scope === 'one_to_one' || (call.ringing && call.invited && call.invited.size === 0)) {
+      if (call.ringTimer) { clearTimeout(call.ringTimer); call.ringTimer = null; }
+      call.ringing = false;
+      activeCalls.delete(callId);
+    }
   });
 
   socket.on('call:leave', (payload = {}) => {
     const callId = String(payload.call_id || ''); const call = activeCalls.get(callId);
     if (!call) return;
+    // Caller ne uthne se pehle hi kaat diya
+    if (call.ringing && uid === call.hostId) { finishRinging(callId, call, 'cancelled'); return; }
     call.participants.delete(uid);
     for (const id of call.participants) io.to('user:' + id).emit('call:participant-left', { call_id: callId, user_id: uid });
     if (call.participants.size < 2 || uid === call.hostId) {
@@ -235,7 +354,11 @@ io.on('connection', async (socket) => {
     const current = onlineUsers.get(uid);
     if (!current) return;
     current.sockets.delete(socket.id);
-    if (current.sockets.size === 0) { onlineUsers.delete(uid); io.emit('presence:offline', { user_id: uid }); }
+    if (current.sockets.size === 0) {
+      onlineUsers.delete(uid); io.emit('presence:offline', { user_id: uid });
+      // Agar main call kar raha tha aur ring ho rahi thi, to cancel
+      for (const [callId, c] of activeCalls) { if (c.hostId === uid && c.ringing) finishRinging(callId, c, 'cancelled'); }
+    }
   });
 });
 
