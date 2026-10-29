@@ -703,7 +703,7 @@
     if (!me) return;
     const [a, b] = await Promise.all([
       sb.from('statuses')
-        .select('id,user_id,kind,text,bg,image_path,created_at,profiles(name,username)')
+        .select('id,user_id,kind,text,bg,image_path,created_at,profiles!statuses_user_id_fkey(name,username)')
         .order('created_at', { ascending: true }).limit(300),
       sb.from('status_views').select('status_id').eq('viewer_id', me),
     ]);
