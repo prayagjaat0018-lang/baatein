@@ -76,6 +76,12 @@
   #list header { padding: 18px 20px 10px; display: flex; align-items: center; justify-content: space-between; }
   #list header .brand b { font-size: 24px; }
   #chatList { flex: 1; overflow-y: auto; padding-bottom: 90px; }
+  .quality-tools { padding: 0 16px 10px; display:flex; flex-direction:column; gap:8px; }
+  .quality-tools input { height:44px; border-radius:14px; font-size:14px; }
+  .quality-tabs { display:flex; gap:6px; }
+  .quality-tabs button { flex:1; padding:9px 6px; border:1px solid #3A3B4F; border-radius:12px; background:transparent; color:var(--muted); font-family:inherit;font-size:12px;font-weight:600; cursor:pointer; }
+  .quality-tabs button.on { background:var(--violet); color:#fff; border-color:var(--violet); }
+  .row .quality-icons { font-size:12px; color:var(--lime); margin-left:4px; }
   .row { display: flex; align-items: center; gap: 14px; padding: 10px 20px; cursor: pointer; width: 100%; border: 0; background: transparent; color: inherit; text-align: left; font-family: inherit; }
   .row:active, .row:hover { background: #12121C; }
   .row .avatar { border-radius: 20px; width: 56px; height: 56px; }
@@ -216,6 +222,15 @@
       <button class="avatar" id="meBtn" aria-label="My profile">?</button>
     </header>
     <div id="storyRow"></div>
+    <div class="quality-tools">
+      <input id="chatSearch" type="search" placeholder="Search chats and messages…" aria-label="Search chats and messages">
+      <div class="quality-tabs">
+        <button type="button" class="on" data-chat-view="all">All chats</button>
+        <button type="button" data-chat-view="pinned">📌 Pinned</button>
+        <button type="button" data-chat-view="archived">🗂️ Archived</button>
+      </div>
+      <div id="qualitySearchResults" class="hidden" style="max-height:170px;overflow:auto"></div>
+    </div>
     <div id="chatList"></div>
     <button class="fab" id="newBtn" type="button">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B0B12" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -355,6 +370,13 @@
   let socket = null;
   let mode = 'login';
   let convs = [];       // meri chats
+  let chatView = 'all';
+  let qualitySearchTimer = null;
+  const qualityKey = () => 'baatein-chat-quality:' + (myId() || 'guest');
+  function qualityState() { try { return JSON.parse(localStorage.getItem(qualityKey()) || '{}'); } catch (_) { return {}; } }
+  function saveQualityState(state) { localStorage.setItem(qualityKey(), JSON.stringify(state)); }
+  function chatFlags(id) { const s = qualityState(); return (s[id] || {}); }
+  function setChatFlag(id, key, value) { const s = qualityState(); s[id] = s[id] || {}; s[id][key] = value; saveQualityState(s); renderList(); }
   let openConvObj = null; // abhi khuli chat
   let seen = new Set();   // is chat ke dikh chuke message ids
   let onlineUserIds = new Set();
@@ -592,7 +614,15 @@
   function renderList() {
     const box = $('chatList');
     box.innerHTML = '';
-    const list = convs.filter((c) => c.last_text).sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at));
+    const q = ($('chatSearch')?.value || '').trim().toLowerCase();
+    const list = convs.filter((c) => {
+      const f = chatFlags(c.id);
+      if (!c.last_text && !c.title) return false;
+      if (chatView === 'pinned' && !f.pinned) return false;
+      if (chatView === 'archived' && !f.archived) return false;
+      if (chatView === 'all' && f.archived) return false;
+      return !q || [c.title, c.username, c.last_text].some(v => String(v || '').toLowerCase().includes(q));
+    }).sort((a, b) => Number(!!chatFlags(b.id).pinned) - Number(!!chatFlags(a.id).pinned) || new Date(b.last_message_at) - new Date(a.last_message_at));
     if (!list.length) {
       const e = document.createElement('div');
       e.className = 'empty';
@@ -617,6 +647,8 @@
       lastRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px';
       const last = document.createElement('div'); last.className = 'last'; last.textContent = c.last_text;
       lastRow.appendChild(last);
+      const flags = chatFlags(c.id);
+      if (flags.pinned || flags.muted) { const ic = document.createElement('span'); ic.className='quality-icons'; ic.textContent=(flags.pinned?'📌 ':'')+(flags.muted?'🔕':''); nm.appendChild(ic); }
       if (c.unread) {
         const b = document.createElement('span');
         b.className = 'badge';
@@ -626,9 +658,52 @@
       mid.appendChild(top); mid.appendChild(lastRow);
       row.appendChild(av); row.appendChild(mid);
       row.onclick = () => openConv(c);
+      let pressTimer;
+      row.addEventListener('contextmenu', (ev) => { ev.preventDefault(); showChatActions(c); });
+      row.addEventListener('touchstart', () => { pressTimer = setTimeout(() => showChatActions(c), 650); }, {passive:true});
+      ['touchend','touchmove','touchcancel'].forEach(evt => row.addEventListener(evt, () => clearTimeout(pressTimer), {passive:true}));
       box.appendChild(row);
     });
   }
+
+  function showChatActions(c) {
+    const f = chatFlags(c.id);
+    const action = prompt('Chat options for ' + c.title + ':\n1 = Pin/Unpin\n2 = Archive/Unarchive\n3 = Mute/Unmute notifications\n4 = Open chat');
+    if (action === '1') setChatFlag(c.id, 'pinned', !f.pinned);
+    else if (action === '2') setChatFlag(c.id, 'archived', !f.archived);
+    else if (action === '3') setChatFlag(c.id, 'muted', !f.muted);
+    else if (action === '4') openConv(c);
+  }
+  $('chatSearch').addEventListener('input', () => {
+    renderList();
+    const q = $('chatSearch').value.trim();
+    const out = $('qualitySearchResults');
+    if (!q) { out.classList.add('hidden'); out.innerHTML=''; return; }
+    clearTimeout(qualitySearchTimer);
+    qualitySearchTimer = setTimeout(async () => {
+      out.innerHTML = '<div style="color:var(--muted);padding:6px 4px;font-size:12px">Searching messages…</div>';
+      out.classList.remove('hidden');
+      const ids = convs.filter(c => !chatFlags(c.id).archived).map(c => c.id);
+      if (!ids.length) { out.innerHTML=''; return; }
+      const { data, error } = await sb.from('chat_messages').select('id,conversation_id,text,created_at').in('conversation_id', ids).ilike('text', '%' + q.replace(/[%,()]/g, '') + '%').order('created_at', {ascending:false}).limit(20);
+      if (q !== $('chatSearch').value.trim()) return;
+      out.innerHTML='';
+      if (error) { out.textContent='Message search unavailable. Chat names and last messages are still searchable.'; return; }
+      if (!data || !data.length) { out.textContent='No matching messages found.'; return; }
+      data.forEach(m => {
+        const c = convs.find(x => x.id === m.conversation_id); if (!c) return;
+        const b=document.createElement('button'); b.type='button'; b.style.cssText='display:block;width:100%;text-align:left;padding:9px 10px;margin:4px 0;border:1px solid #343447;border-radius:10px;background:#1A1A26;color:#F4F4FA;cursor:pointer';
+        const title=document.createElement('b'); title.textContent=c.title+' · '+new Date(m.created_at).toLocaleDateString(); title.style.display='block';
+        const snippet=document.createElement('span'); snippet.textContent=m.text; snippet.style.cssText='display:block;color:#B4B5CC;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+        b.append(title,snippet); b.onclick=()=>openConv(c); out.appendChild(b);
+      });
+    }, 350);
+  });
+  document.querySelectorAll('[data-chat-view]').forEach(btn => btn.addEventListener('click', () => {
+    chatView = btn.dataset.chatView;
+    document.querySelectorAll('[data-chat-view]').forEach(b => b.classList.toggle('on', b === btn));
+    renderList();
+  }));
 
   $('meBtn').onclick = () => openProfile(false, profile);
   $('newBtn').onclick = () => openNewChat();
