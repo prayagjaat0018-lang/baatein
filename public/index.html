@@ -892,7 +892,7 @@
       const viewing = openConvObj && openConvObj.id === m.conversation_id && current === 'conv';
       if (!c) { loadList(); }
       else {
-        c.last_text = m.text.slice(0, 80);
+        c.last_text = (m.text || (m.attachment_mime && m.attachment_mime.startsWith('image/') ? '📷 Photo' : m.attachment_mime && m.attachment_mime.startsWith('audio/') ? '🎤 Voice message' : m.attachment_mime && m.attachment_mime.startsWith('video/') ? '🎬 Video' : m.attachment_path ? '📎 File' : '')).slice(0, 80);
         c.last_message_at = new Date(m.time).toISOString();
         if (!fromMe && !viewing) c.unread = (c.unread || 0) + 1;
         if (current === 'list') renderList();
@@ -1239,6 +1239,7 @@
   });
   async function uploadChatFile(file, mime) {
     if (!openConvObj || !socket) return;
+    mime = String(mime || 'application/octet-stream').split(';')[0].trim() || 'application/octet-stream'; // 'audio/webm;codecs=opus' -> 'audio/webm'
     const { data: auth } = await sb.auth.getSession();
     if (!auth.session) { alert('Dobara login karo.'); return; }
     const cid=openConvObj.id, uid=myId();
