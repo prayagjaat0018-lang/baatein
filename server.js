@@ -262,6 +262,31 @@ io.on('connection', async (socket) => {
     } catch (_) {}
   });
 
+  // Emoji reaction: ek user ka ek message par ek reaction (dobara wahi dabaya to hat jata hai)
+  const REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+  socket.on('reaction', async (payload = {}) => {
+    const id = Number(payload.message_id); const cid = String(payload.conversation_id || '');
+    const emoji = payload.emoji == null ? null : String(payload.emoji);
+    if (!Number.isSafeInteger(id) || id <= 0 || !UUID.test(cid)) return;
+    if (emoji !== null && !REACTIONS.includes(emoji)) return;
+    try {
+      if (!(await isMember(cid, uid, token))) return;
+      const chk = await sb('/rest/v1/chat_messages?id=eq.' + id + '&conversation_id=eq.' + cid + '&select=id', token);
+      if (!chk.ok || !(await chk.json()).length) return;
+      let r;
+      if (emoji === null) {
+        r = await sb('/rest/v1/message_reactions?message_id=eq.' + id + '&user_id=eq.' + uid, token, { method: 'DELETE' });
+      } else {
+        r = await sb('/rest/v1/message_reactions?on_conflict=message_id,user_id', token, {
+          method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+          body: JSON.stringify({ message_id: id, user_id: uid, emoji }),
+        });
+      }
+      if (!r.ok) return;
+      io.to('conv:' + cid).emit('reaction:updated', { conversation_id: cid, message_id: id, user_id: uid, emoji });
+    } catch (_) {}
+  });
+
   // Message edit/delete: server enforces sender ownership; database RLS is a second guard.
   socket.on('message:edit', async (payload = {}) => {
     const id = Number(payload.id); const text = String(payload.text || '').trim().slice(0, 500);
