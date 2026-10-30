@@ -159,6 +159,13 @@
   #userCard .ucOn { margin-top:6px; font-size:12px; color:var(--muted); }
   #userCard button { margin-top:16px; width:100%; }
   .avatar.tappable { cursor:pointer; }
+  .sel-bar { display:flex; align-items:center; gap:8px; margin:0 20px 10px; padding:10px 12px; border-radius:14px; background:#2A2250; color:#fff; font-size:13px; }
+  .sel-bar span { flex:1; font-weight:700; }
+  .sel-bar button { border:0; border-radius:10px; padding:8px 11px; font-family:inherit; font-size:12.5px; font-weight:700; cursor:pointer; background:#3A3B4F; color:#fff; }
+  .sel-bar button.danger { background:#E5484D; }
+  .row.sel { background:rgba(108,71,255,.22) !important; }
+  .row .tick { color:#C8FF3D; margin-right:4px; }
+  #selToggle { border:1px solid #3A3B4F; background:transparent; color:var(--muted); border-radius:12px; padding:9px 10px; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; }
   #storyRow { display: flex; gap: 14px; padding: 4px 20px 12px; overflow-x: auto; flex-shrink: 0; }
   .story { position: relative; flex-shrink: 0; width: 66px; }
   .story .sbtn { width: 100%; border: 0; background: transparent; color: var(--text); font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding: 0; }
@@ -404,10 +411,12 @@
     </header>
     <div id="notifBanner" class="notif-banner hidden"><div><b>🔔 Notifications on karo</b><span id="notifHint">App band ho tab bhi message aur call ki ring aayegi.</span></div><button id="notifBtn" type="button">Enable</button></div>
     <div id="statsBar" class="stats-bar hidden"><span><b id="stOnline">0</b>🟢 online</span><span><b id="stInstalled">0</b>📲 installed</span><span><b id="stMembers">0</b>👥 members</span></div>
+    <div id="selBar" class="sel-bar hidden"><span id="selCount">0 selected</span><button type="button" id="selAll">All</button><button type="button" class="danger" id="selDel">🗑 Delete</button><button type="button" id="selCancel">Cancel</button></div>
     <div id="storyRow"></div>
     <div class="quality-tools">
       <input id="chatSearch" type="search" placeholder="Search chats and messages…" aria-label="Search chats and messages">
       <div class="quality-tabs">
+        <button type="button" id="selToggle">☑ Select</button>
         <button type="button" class="on" data-chat-view="all">All chats</button>
         <button type="button" data-chat-view="pinned">📌 Pinned</button>
         <button type="button" data-chat-view="archived">🗂️ Archived</button>
@@ -777,9 +786,10 @@
 
   // ---------------- Chats list ----------------
   function openList() {
+    if (selMode) { selMode = false; selected = new Set(); }
     openConvObj = null;
     show('list');
-    renderList();
+    renderList(); updateSelBar();
     renderStories();
     loadList();
     loadStatuses();
@@ -788,7 +798,7 @@
   async function loadList() {
     const me = myId();
     const { data: mine, error } = await sb.from('conversation_members')
-      .select('conversation_id, conversations!inner(id,is_group,name,last_text,last_message_at)')
+      .select('conversation_id, cleared_at, conversations!inner(id,is_group,name,last_text,last_message_at)')
       .eq('user_id', me);
     if (error || !mine) return;
     const ids = mine.map((r) => r.conversation_id);
@@ -812,6 +822,7 @@
         other_user_id: p.id || null,
         last_text: r.conversations.last_text || '',
         last_message_at: r.conversations.last_message_at,
+        cleared_at: r.cleared_at || null,
         unread: 0,
       };
     });
@@ -838,6 +849,7 @@
     const list = convs.filter((c) => {
       const f = chatFlags(c.id);
       if (!c.last_text && !c.title) return false;
+      if (c.cleared_at && new Date(c.last_message_at) <= new Date(c.cleared_at)) return false;
       if (chatView === 'pinned' && !f.pinned) return false;
       if (chatView === 'archived' && !f.archived) return false;
       if (chatView === 'all' && f.archived) return false;
@@ -878,6 +890,13 @@
       }
       mid.appendChild(top); mid.appendChild(lastRow);
       row.appendChild(av); row.appendChild(mid);
+      if (selMode) {
+        const on = selected.has(c.id);
+        if (on) { row.classList.add('sel'); const t = document.createElement('span'); t.className = 'tick'; t.textContent = '✔'; nm.insertBefore(t, nm.firstChild); }
+        row.onclick = () => { if (selected.has(c.id)) selected.delete(c.id); else selected.add(c.id); renderList(); updateSelBar(); };
+        box.appendChild(row);
+        return;
+      }
       row.onclick = () => openConv(c);
       let pressTimer;
       row.addEventListener('contextmenu', (ev) => { ev.preventDefault(); showChatActions(c); });
@@ -889,12 +908,40 @@
 
   function showChatActions(c) {
     const f = chatFlags(c.id);
-    const action = prompt('Chat options for ' + c.title + ':\n1 = Pin/Unpin\n2 = Archive/Unarchive\n3 = Mute/Unmute notifications\n4 = Open chat');
+    const action = prompt('Chat options for ' + c.title + ':\n1 = Pin/Unpin\n2 = Archive/Unarchive\n3 = Mute/Unmute notifications\n4 = Open chat\n5 = Delete this chat\n6 = Select multiple chats');
     if (action === '1') setChatFlag(c.id, 'pinned', !f.pinned);
     else if (action === '2') setChatFlag(c.id, 'archived', !f.archived);
     else if (action === '3') setChatFlag(c.id, 'muted', !f.muted);
     else if (action === '4') openConv(c);
+    else if (action === '5') deleteChats([c.id]);
+    else if (action === '6') { selMode = true; selected = new Set([c.id]); renderList(); updateSelBar(); }
   }
+
+  // ---- Chats delete (sirf mere liye) ----
+  let selMode = false, selected = new Set();
+  function visibleChatIds() {
+    return convs.filter((c) => !(c.cleared_at && new Date(c.last_message_at) <= new Date(c.cleared_at))).map((c) => c.id);
+  }
+  function updateSelBar() {
+    $('selBar').classList.toggle('hidden', !selMode);
+    $('selCount').textContent = selected.size + ' selected';
+    $('selToggle').classList.toggle('hidden', selMode);
+    $('selDel').disabled = !selected.size;
+  }
+  function exitSelMode() { selMode = false; selected = new Set(); renderList(); updateSelBar(); }
+  async function deleteChats(ids) {
+    if (!ids.length) return;
+    if (!confirm(ids.length === 1 ? 'Ye chat delete karein? Ye sirf aapke phone/account se hatega, samne wale ki chat waisi hi rahegi.' : ids.length + ' chats delete karein? Ye sirf aapke account se hatengi, samne walon ki chats waisi hi rahengi.')) return;
+    const { error } = await sb.rpc('clear_chats', { cids: ids });
+    if (error) { alert('Delete nahi ho paya: ' + error.message); return; }
+    if (openConvObj && ids.includes(openConvObj.id)) openConvObj = null;
+    selMode = false; selected = new Set();
+    await loadList(); updateSelBar();
+  }
+  $('selToggle').onclick = () => { selMode = true; selected = new Set(); renderList(); updateSelBar(); };
+  $('selCancel').onclick = exitSelMode;
+  $('selAll').onclick = () => { const all = visibleChatIds(); selected = selected.size === all.length ? new Set() : new Set(all); renderList(); updateSelBar(); };
+  $('selDel').onclick = () => deleteChats([...selected]);
   $('chatSearch').addEventListener('input', () => {
     renderList();
     const q = $('chatSearch').value.trim();
@@ -906,8 +953,9 @@
       out.classList.remove('hidden');
       const ids = convs.filter(c => !chatFlags(c.id).archived).map(c => c.id);
       if (!ids.length) { out.innerHTML=''; return; }
-      const { data, error } = await sb.from('chat_messages').select('id,conversation_id,text,created_at').in('conversation_id', ids).ilike('text', '%' + q.replace(/[%,()]/g, '') + '%').order('created_at', {ascending:false}).limit(20);
+      let { data, error } = await sb.from('chat_messages').select('id,conversation_id,text,created_at').in('conversation_id', ids).ilike('text', '%' + q.replace(/[%,()]/g, '') + '%').order('created_at', {ascending:false}).limit(20);
       if (q !== $('chatSearch').value.trim()) return;
+      if (data) data = data.filter((m) => { const cc = convs.find((x) => x.id === m.conversation_id); return !(cc && cc.cleared_at && m.created_at <= cc.cleared_at); });
       out.innerHTML='';
       if (error) { out.textContent='Message search unavailable. Chat names and last messages are still searchable.'; return; }
       if (!data || !data.length) { out.textContent='No matching messages found.'; return; }
@@ -950,6 +998,7 @@
     const { data } = await sb.from('chat_messages')
       .select('id,sender_id,text,created_at,reply_to,edited_at,attachment_path,attachment_name,attachment_mime,attachment_size')
       .eq('conversation_id', c.id)
+      .gt('created_at', c.cleared_at || '1970-01-01T00:00:00Z')
       .order('created_at', { ascending: false })
       .limit(100);
     if (!openConvObj || openConvObj.id !== c.id) return;
