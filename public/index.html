@@ -226,6 +226,14 @@
   #chList .gm .cb { font-size:16px; padding:6px 9px; }
   .madeby { text-align:center; color:var(--muted); font-size:12px; padding:14px 16px 6px; }
   .madeby b { color:#fff; }
+  #pinModal { position:fixed; inset:0; z-index:1300; background:rgba(4,4,10,.9); display:flex; align-items:center; justify-content:center; padding:20px; }
+  #pinModal.hidden { display:none !important; }
+  #pinModal .box { width:100%; max-width:320px; background:#171727; border-radius:24px; padding:22px 20px; color:#fff; display:flex; flex-direction:column; gap:10px; text-align:center; }
+  #pinModal h3 { margin:0; } #pinModal .tsub { margin:0; color:var(--muted); font-size:13px; }
+  #pinInput { text-align:center; font-size:26px; letter-spacing:10px; height:54px; border-radius:14px; }
+  #lockedBar { display:flex; align-items:center; gap:10px; margin:0 16px 8px; padding:8px 10px; border-radius:14px; background:#2A2250; color:#fff; }
+  #lockedBar b { flex:1; } #lockedBar button { border:0; border-radius:10px; padding:7px 10px; background:#3A3B4F; color:#fff; font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
+  #lockedBar.hidden { display:none !important; }
   #themeSheet { position:fixed; inset:0; z-index:1100; background:rgba(4,4,10,.82); display:flex; align-items:flex-end; justify-content:center; }
   #themeSheet.hidden { display:none !important; }
   #themeSheet .box { width:100%; max-width:480px; background:#171727; border-radius:24px 24px 0 0; padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px)); color:#fff; display:flex; flex-direction:column; gap:10px; }
@@ -506,7 +514,7 @@
       <button class="avatar" id="meBtn" aria-label="My profile">?</button>
     </header>
     <div id="notifBanner" class="notif-banner hidden"><div><b>🔔 Notifications on karo</b><span id="notifHint">App band ho tab bhi message aur call ki ring aayegi.</span></div><button id="notifBtn" type="button">Enable</button><button id="notifX" type="button" aria-label="Baad me">✕</button></div>
-    <div id="selBar" class="sel-bar hidden"><span id="selCount">0 selected</span><button type="button" id="selAll">All</button><button type="button" class="danger" id="selDel">🗑 Delete</button><button type="button" id="selCancel">Cancel</button></div>
+    <div id="selBar" class="sel-bar hidden"><span id="selCount">0 selected</span><button type="button" id="selAll">All</button><button type="button" id="selLock">🔒 Lock</button><button type="button" class="danger" id="selDel">🗑 Delete</button><button type="button" id="selCancel">Cancel</button></div>
     <div id="storyRow"></div>
     <div class="quality-tools">
       <div class="srow">
@@ -520,6 +528,7 @@
       </div>
       <div id="qualitySearchResults" class="hidden" style="max-height:170px;overflow:auto"></div>
     </div>
+    <div id="lockedBar" class="hidden"><button type="button" id="lbBack">← Chats</button><b>🔒 Locked chats</b><button type="button" id="lbPin">PIN badlo</button></div>
     <div id="chatList"></div>
     <button class="fab" id="newBtn" type="button">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B0B12" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -737,6 +746,17 @@
 
 </div>
 
+<div id="pinModal" class="hidden" role="dialog" aria-modal="true" aria-label="PIN">
+  <div class="box">
+    <h3 id="pinTitle">PIN</h3>
+    <p id="pinSub" class="tsub"></p>
+    <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" placeholder="••••">
+    <p class="error" id="pinErr"></p>
+    <div style="display:flex;gap:8px"><button class="ghost" id="pinCancel" type="button" style="flex:1">Cancel</button><button class="main" id="pinOk" type="button" style="flex:1">OK</button></div>
+    <button class="ghost hidden" id="pinForgot" type="button" style="border:0;color:var(--muted)">PIN bhool gaye?</button>
+  </div>
+</div>
+
 <div id="themeSheet" class="hidden" role="dialog" aria-modal="true" aria-label="Chat theme">
   <div class="box">
     <h3>🎨 Chat theme</h3>
@@ -911,6 +931,7 @@
   }
 
   function startApp() {
+    loadLockState();
     paintAvatar($('meBtn'), profile.name, myId());
     connectSocket();
     openList();
@@ -967,7 +988,7 @@
         if (!fromMe && !viewing) c.unread = (c.unread || 0) + 1;
         if (current === 'list') renderList();
       }
-      if (!fromMe && !viewing && !document.hidden && !(c && chatFlags(c.id).muted)) pingSound();
+      if (!fromMe && !viewing && !document.hidden && !lockedSet.has(m.conversation_id) && !(c && chatFlags(c.id).muted)) pingSound();
       if (c && !c.is_group) scheduleStreaks();
       if (viewing) {
         addMessage(m);
@@ -1026,6 +1047,7 @@
 
   // ---------------- Chats list ----------------
   function openList() {
+    if (chatView === 'locked' && !lockSessionOk) { chatView = 'all'; syncChips(); }
     if (selMode) { selMode = false; selected = new Set(); }
     openConvObj = null;
     show('list');
@@ -1087,9 +1109,11 @@
   function renderList() {
     const box = $('chatList');
     box.innerHTML = '';
+    $('lockedBar').classList.toggle('hidden', chatView !== 'locked');
     const q = ($('chatSearch')?.value || '').trim().toLowerCase();
     const list = convs.filter((c) => {
       const f = chatFlags(c.id);
+      if (chatView === 'locked') { if (!lockedSet.has(c.id)) return false; } else if (lockedSet.has(c.id)) return false;
       if (!c.last_text && !c.title) return false;
       if (c.cleared_at && new Date(c.last_message_at) <= new Date(c.cleared_at)) return false;
       if (chatView === 'pinned' && !f.pinned) return false;
@@ -1097,11 +1121,18 @@
       if (chatView === 'all' && f.archived) return false;
       return !q || [c.title, c.username, c.last_text].some(v => String(v || '').toLowerCase().includes(q));
     }).sort((a, b) => Number(!!chatFlags(b.id).pinned) - Number(!!chatFlags(a.id).pinned) || new Date(b.last_message_at) - new Date(a.last_message_at));
+    if (lockedSet.size && chatView !== 'locked' && !q) {
+      const lr = document.createElement('button'); lr.type = 'button'; lr.className = 'row';
+      lr.innerHTML = '<div class="avatar" style="background:#2A2250">🔒</div><div class="mid"><div class="top"><b>Locked chats</b></div><div class="last">PIN se kholo</div></div>';
+      lr.onclick = async () => { if (await requirePin()) { chatView = 'locked'; syncChips(); renderList(); } };
+      box.appendChild(lr);
+    }
     if (!list.length) {
+      if (lockedSet.size && chatView !== 'locked' && !q) return;
       const e = document.createElement('div');
       e.className = 'empty';
       const b = document.createElement('b');
-      b.textContent = 'No chats yet';
+      b.textContent = chatView === 'locked' ? 'Koi locked chat nahi' : 'No chats yet';
       e.appendChild(b);
       e.appendChild(document.createTextNode('Tap "New chat" and find a friend with their username.'));
       box.appendChild(e);
@@ -1157,13 +1188,14 @@
 
   function showChatActions(c) {
     const f = chatFlags(c.id);
-    const action = prompt('Chat options for ' + c.title + ':\n1 = Pin/Unpin\n2 = Archive/Unarchive\n3 = Mute/Unmute notifications\n4 = Open chat\n5 = Delete this chat\n6 = Select multiple chats');
+    const action = prompt('Chat options for ' + c.title + ':\n1 = Pin/Unpin\n2 = Archive/Unarchive\n3 = Mute/Unmute notifications\n4 = Open chat\n5 = Delete this chat\n6 = Select multiple chats\n7 = ' + (lockedSet.has(c.id) ? 'Unlock chat' : 'Lock chat (PIN se)'));
     if (action === '1') setChatFlag(c.id, 'pinned', !f.pinned);
     else if (action === '2') setChatFlag(c.id, 'archived', !f.archived);
     else if (action === '3') setChatFlag(c.id, 'muted', !f.muted);
     else if (action === '4') openConv(c);
     else if (action === '5') deleteChats([c.id]);
     else if (action === '6') { selMode = true; selected = new Set([c.id]); renderList(); updateSelBar(); }
+    else if (action === '7') toggleLock([c.id]);
   }
 
   // ---- Chats delete (sirf mere liye) ----
@@ -1175,7 +1207,8 @@
     $('selBar').classList.toggle('hidden', !selMode);
     $('selCount').textContent = selected.size + ' selected';
     $('selToggle').classList.toggle('hidden', selMode);
-    $('selDel').disabled = !selected.size;
+    $('selDel').disabled = !selected.size; $('selLock').disabled = !selected.size;
+    $('selLock').textContent = chatView === 'locked' ? '🔓 Unlock' : '🔒 Lock';
   }
   function exitSelMode() { selMode = false; selected = new Set(); renderList(); updateSelBar(); }
   async function deleteChats(ids) {
@@ -1200,7 +1233,7 @@
     qualitySearchTimer = setTimeout(async () => {
       out.innerHTML = '<div style="color:var(--muted);padding:6px 4px;font-size:12px">Searching messages…</div>';
       out.classList.remove('hidden');
-      const ids = convs.filter(c => !chatFlags(c.id).archived).map(c => c.id);
+      const ids = convs.filter(c => !chatFlags(c.id).archived && !lockedSet.has(c.id)).map(c => c.id);
       if (!ids.length) { out.innerHTML=''; return; }
       let { data, error } = await sb.from('chat_messages').select('id,conversation_id,text,created_at').in('conversation_id', ids).ilike('text', '%' + q.replace(/[%,()]/g, '') + '%').order('created_at', {ascending:false}).limit(20);
       if (q !== $('chatSearch').value.trim()) return;
@@ -1218,7 +1251,7 @@
     }, 350);
   });
   document.querySelectorAll('[data-chat-view]').forEach(btn => btn.addEventListener('click', () => {
-    chatView = btn.dataset.chatView;
+    chatView = btn.dataset.chatView; lockSessionOk = false;
     document.querySelectorAll('[data-chat-view]').forEach(b => b.classList.toggle('on', b === btn));
     renderList();
   }));
@@ -1871,6 +1904,7 @@
       }
     } catch (_) {}
     await sb.auth.signOut();
+    chatView = 'all'; lockSessionOk = false; lockedSet = new Set();
     session = null; profile = null; convs = []; openConvObj = null; statusGroups = []; seenSet = new Set();
     $('passInput').value = '';
     show('auth');
@@ -2122,7 +2156,7 @@
     if (current !== 'callhist') return;
     box.innerHTML = '';
     if (error) { box.innerHTML = '<div class="empty">Call history load nahi hui: ' + String(error.message).replace(/[<>]/g, '') + '</div>'; return; }
-    const rows = (data || []).filter((r) => { const c = convs.find((x) => x.id === r.conversation_id); return c && !(c.cleared_at && r.started_at <= c.cleared_at); });
+    const rows = (data || []).filter((r) => { const c = convs.find((x) => x.id === r.conversation_id); return c && !lockedSet.has(r.conversation_id) && !(c.cleared_at && r.started_at <= c.cleared_at); });
     if (!rows.length) { const e = document.createElement('div'); e.className = 'empty'; e.innerHTML = '<b>Abhi koi call nahi</b>Kisi chat me upar ka 📞 ya 🎥 dabake call lagao.'; box.appendChild(e); return; }
     rows.forEach((r) => {
       const c = convs.find((x) => x.id === r.conversation_id);
@@ -2282,6 +2316,90 @@
     await loadList(); openList();
   };
   $('convName').parentElement.addEventListener('click', () => { if (openConvObj && openConvObj.is_group) openGroupInfo(); });
+
+  // ---------------- Chat lock (PIN) ----------------
+  let lockedSet = new Set(), lockSessionOk = false, lockCooldown = 0, pinResolve = null, hiddenAt = 0;
+  const lockKey = () => 'baatein-lock:' + (myId() || 'guest');
+  function lockState() { try { return JSON.parse(localStorage.getItem(lockKey()) || '{}'); } catch (_) { return {}; } }
+  function idbPutLocked(ids) {
+    try {
+      const r = indexedDB.open('baatein-kv', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('kv');
+      r.onsuccess = () => { try { r.result.transaction('kv', 'readwrite').objectStore('kv').put(ids, 'locked:' + (myId() || 'guest')); } catch (_) {} };
+    } catch (_) {}
+  }
+  function lockSave(st) { try { localStorage.setItem(lockKey(), JSON.stringify(st)); } catch (_) {} lockedSet = new Set(st.ids || []); idbPutLocked([...lockedSet]); }
+  function loadLockState() { const st = lockState(); lockedSet = new Set(st.ids || []); idbPutLocked([...lockedSet]); }
+  function syncChips() { document.querySelectorAll('[data-chat-view]').forEach((b) => b.classList.toggle('on', b.dataset.chatView === chatView)); }
+  async function hashPin(pin, salt) {
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: enc.encode(salt), iterations: 100000, hash: 'SHA-256' }, key, 256);
+    return [...new Uint8Array(bits)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  function askPin(title, sub, forgot) {
+    return new Promise((res) => {
+      pinResolve = res; $('pinTitle').textContent = title; $('pinSub').textContent = sub || ''; $('pinErr').textContent = ''; $('pinInput').value = '';
+      $('pinForgot').classList.toggle('hidden', !forgot); $('pinModal').classList.remove('hidden'); setTimeout(() => $('pinInput').focus(), 60);
+    });
+  }
+  function closePin(v) { $('pinModal').classList.add('hidden'); const r = pinResolve; pinResolve = null; if (r) r(v); }
+  $('pinOk').onclick = () => { const v = $('pinInput').value.trim(); if (!/^\d{4,6}$/.test(v)) { $('pinErr').textContent = '4 se 6 number daalo.'; return; } closePin(v); };
+  $('pinCancel').onclick = () => closePin(null);
+  $('pinForgot').onclick = () => closePin('__forgot__');
+  $('pinInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('pinOk').click(); } });
+  async function setupPin(change) {
+    const a = await askPin(change ? 'Naya PIN' : '🔒 PIN banao', '4 se 6 number. Locked chats kholne ke liye ye PIN lagega.'); if (!a) return false;
+    const b = await askPin('PIN dobara daalo', ''); if (b !== a) { if (b !== null) alert('PIN match nahi hua. Dobara try karo.'); return false; }
+    const st = lockState(); st.salt = crypto.randomUUID(); st.hash = await hashPin(a, st.salt); lockSave(st); lockSessionOk = true; return true;
+  }
+  async function requirePin() {
+    if (lockSessionOk) return true;
+    const st = lockState(); if (!st.hash) return true;
+    let tries = 0, sub = 'Locked chats kholne ke liye PIN daalo';
+    for (;;) {
+      if (Date.now() < lockCooldown) { alert('Bahut galat try ho gaye. Thodi der baad try karo.'); return false; }
+      const v = await askPin('🔒 Locked chats', sub, true);
+      if (v === null) return false;
+      if (v === '__forgot__') {
+        const pw = prompt('PIN reset karne ke liye apna Baatein account ka password likho:'); if (!pw) return false;
+        const email = session && session.user && session.user.email;
+        const { error } = await sb.auth.signInWithPassword({ email, password: pw });
+        if (error) { alert('Password galat hai.'); return false; }
+        lockSave({ ids: [] }); lockSessionOk = false;
+        alert('PIN hata diya. Saari locked chats ab normal chats me aa gayi. Chaho to dobara lock kar lena.'); renderList(); return false;
+      }
+      if (await hashPin(v, st.salt) === st.hash) { lockSessionOk = true; return true; }
+      tries++; if (tries >= 5) { lockCooldown = Date.now() + 30000; alert('5 baar galat PIN. 30 second ruko.'); return false; }
+      sub = 'Galat PIN (' + tries + '/5). Dobara daalo';
+    }
+  }
+  async function toggleLock(ids) {
+    if (!ids.length) return;
+    if (chatView === 'locked') {
+      const st = lockState(); st.ids = (st.ids || []).filter((x) => !ids.includes(x)); lockSave(st);
+      alert('🔓 Unlock ho gayi. Ab wo normal chats me dikhegi.');
+    } else {
+      let st = lockState();
+      if (!st.hash) { if (!(await setupPin(false))) return; st = lockState(); }
+      st.ids = [...new Set([...(st.ids || []), ...ids])]; lockSave(st);
+      if (openConvObj && ids.includes(openConvObj.id)) openConvObj = null;
+      alert('🔒 ' + ids.length + ' chat lock ho gayi. Ab wo list me nahi dikhegi. List ke upar "Locked chats" me PIN se khulegi.');
+    }
+    selMode = false; selected = new Set(); renderList(); updateSelBar();
+  }
+  $('selLock').onclick = () => toggleLock([...selected]);
+  $('lbBack').onclick = () => { chatView = 'all'; lockSessionOk = false; syncChips(); renderList(); };
+  $('lbPin').onclick = () => setupPin(true);
+  // App chhodke jaao (60 sec se zyada) to locked chats dobara lock
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (hiddenAt && Date.now() - hiddenAt > 60000) {
+      lockSessionOk = false;
+      if (chatView === 'locked' && current === 'list') { chatView = 'all'; syncChips(); renderList(); }
+      else if (openConvObj && lockedSet.has(openConvObj.id) && current === 'conv') { openConvObj = null; chatView = 'all'; syncChips(); openList(); }
+    }
+  });
 
   // ---------------- Chat theme (dono taraf dikhti hai) ----------------
   const THEMES = {
@@ -2456,8 +2574,9 @@
 
   // Notification dabane par seedha wahi chat kholo
   let pendingOpenCid = (() => { try { const c = new URLSearchParams(location.search).get('c'); return c && /^[0-9a-f-]{36}$/i.test(c) ? c : null; } catch (_) { return null; } })();
-  function openFromNotif(cid) {
+  async function openFromNotif(cid) {
     if (!cid) return;
+    if (lockedSet.has(cid)) { if (!(await requirePin())) return; chatView = 'locked'; syncChips(); }
     const c = convs.find((x) => x.id === cid);
     if (c) openConv(c); else loadList().then(() => { const c2 = convs.find((x) => x.id === cid); if (c2) openConv(c2); });
   }
