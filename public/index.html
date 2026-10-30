@@ -136,6 +136,13 @@
   form#send button { width: 56px; height: 56px; border: 0; border-radius: 50%; background: var(--lime); cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
   /* ---------- Status ---------- */
+  .notif-banner { display:flex; align-items:center; gap:12px; margin:4px 20px 10px; padding:12px 14px; border-radius:16px; background:linear-gradient(135deg,#2A2250,#1E1B33); border:1px solid #4A3FA0; }
+  .notif-banner > div { flex:1; font-size:12.5px; color:var(--muted); line-height:1.35; }
+  .notif-banner b { display:block; color:#fff; font-size:14px; margin-bottom:2px; }
+  .notif-banner button { border:0; border-radius:12px; padding:10px 14px; background:var(--violet); color:#fff; font-family:inherit; font-weight:700; font-size:13px; cursor:pointer; }
+  .stats-bar { display:flex; gap:8px; margin:0 20px 10px; }
+  .stats-bar span { flex:1; text-align:center; padding:8px 4px; border-radius:12px; background:#1E1B33; color:var(--muted); font-size:11.5px; }
+  .stats-bar b { display:block; color:#fff; font-size:16px; }
   #storyRow { display: flex; gap: 14px; padding: 4px 20px 12px; overflow-x: auto; flex-shrink: 0; }
   .story { position: relative; flex-shrink: 0; width: 66px; }
   .story .sbtn { width: 100%; border: 0; background: transparent; color: var(--text); font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding: 0; }
@@ -379,6 +386,8 @@
       </div>
       <button class="avatar" id="meBtn" aria-label="My profile">?</button>
     </header>
+    <div id="notifBanner" class="notif-banner hidden"><div><b>🔔 Notifications on karo</b><span id="notifHint">App band ho tab bhi message aur call ki ring aayegi.</span></div><button id="notifBtn" type="button">Enable</button></div>
+    <div id="statsBar" class="stats-bar hidden"><span><b id="stOnline">0</b>🟢 online</span><span><b id="stInstalled">0</b>📲 installed</span><span><b id="stMembers">0</b>👥 members</span></div>
     <div id="storyRow"></div>
     <div class="quality-tools">
       <input id="chatSearch" type="search" placeholder="Search chats and messages…" aria-label="Search chats and messages">
@@ -534,7 +543,7 @@
   function qualityState() { try { return JSON.parse(localStorage.getItem(qualityKey()) || '{}'); } catch (_) { return {}; } }
   function saveQualityState(state) { localStorage.setItem(qualityKey(), JSON.stringify(state)); }
   function chatFlags(id) { const s = qualityState(); return (s[id] || {}); }
-  function setChatFlag(id, key, value) { const s = qualityState(); s[id] = s[id] || {}; s[id][key] = value; saveQualityState(s); renderList(); }
+  function setChatFlag(id, key, value) { const s = qualityState(); s[id] = s[id] || {}; s[id][key] = value; saveQualityState(s); if (key === 'muted') sb.rpc('set_push_muted', { cid: id, muted: !!value }).then(() => {}, () => {}); renderList(); }
   let openConvObj = null; // abhi khuli chat
   let seen = new Set();   // is chat ke dikh chuke message ids
   let onlineUserIds = new Set();
@@ -639,6 +648,10 @@
     paintAvatar($('meBtn'), profile.name);
     connectSocket();
     openList();
+    registerPush(false).then(updateNotifBanner, updateNotifBanner);
+    if (isStandalone) sb.rpc('mark_installed').then(() => {}, () => {});
+    loadStats(); clearInterval(statsTimer); statsTimer = setInterval(loadStats, 60000);
+    if (pendingOpenCid) { const cid = pendingOpenCid; pendingOpenCid = null; loadList().then(() => openFromNotif(cid)); }
   }
 
   // ---------------- Socket (live messages) ----------------
@@ -666,6 +679,7 @@
         if (!fromMe && !viewing) c.unread = (c.unread || 0) + 1;
         if (current === 'list') renderList();
       }
+      if (!fromMe && !viewing && !document.hidden && !(c && chatFlags(c.id).muted)) pingSound();
       if (viewing) {
         addMessage(m);
         scrollDown();
@@ -684,10 +698,11 @@
 
     socket.on('presence:list', (users) => {
       onlineUserIds = new Set((users || []).map(u => u.user_id));
+      updateStatsBar();
       updateConversationPresence();
     });
-    socket.on('presence:online', (u) => { onlineUserIds.add(u.user_id); updateConversationPresence(); });
-    socket.on('presence:offline', (u) => { onlineUserIds.delete(u.user_id); updateConversationPresence(); });
+    socket.on('presence:online', (u) => { onlineUserIds.add(u.user_id); updateConversationPresence(); updateStatsBar(); });
+    socket.on('presence:offline', (u) => { onlineUserIds.delete(u.user_id); updateConversationPresence(); updateStatsBar(); });
     socket.on('read:receipt', (r) => {
       if (openConvObj && r.conversation_id === openConvObj.id && r.user_id !== myId()) {
         peerLastReadAt = r.read_at; refreshReadTicks();
@@ -1394,6 +1409,16 @@
 
   async function logout() {
     if (socket) { socket.disconnect(); socket = null; }
+    stopRing(); clearInterval(statsTimer);
+    // Is phone par is account ki notifications band
+    try {
+      if (pushSupported()) {
+        await Promise.race([(async () => {
+          const reg = await navigator.serviceWorker.ready; const sub = await reg.pushManager.getSubscription();
+          if (sub) await sb.rpc('remove_push_sub', { ep: sub.endpoint });
+        })(), new Promise((r) => setTimeout(r, 2000))]);
+      }
+    } catch (_) {}
     await sb.auth.signOut();
     session = null; profile = null; convs = []; openConvObj = null; statusGroups = []; seenSet = new Set();
     $('passInput').value = '';
@@ -1409,10 +1434,11 @@
   const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }] };
   function callButton(label, cls, fn) { const b=document.createElement('button'); b.textContent=label; if(cls) b.className=cls; b.onclick=fn; return b; }
   function callUi(title, status, actions=[]) {
+    stopRing();
     $('callTitle').textContent=title; $('callStatus').textContent=status; $('callActions').replaceChildren();
     actions.forEach(a=>$('callActions').appendChild(callButton(a.label,a.cls,a.fn))); $('callOverlay').classList.remove('hidden');
   }
-  function closeCallUi() { $('callOverlay').classList.add('hidden'); $('callVideos').replaceChildren(); $('callActions').replaceChildren(); }
+  function closeCallUi() { stopRing(); $('callOverlay').classList.add('hidden'); $('callVideos').replaceChildren(); $('callActions').replaceChildren(); }
   function addCallVideo(id, stream, muted=false) {
     let v=document.getElementById('call-video-'+id); if(!v){ v=document.createElement('video'); v.id='call-video-'+id; v.autoplay=true; v.playsInline=true; v.muted=muted; $('callVideos').appendChild(v); }
     v.srcObject=stream; return v;
@@ -1449,10 +1475,13 @@
   }
   function showIncomingCall(info) {
     if(activeCall) { socket.emit('call:reject',{call_id:info.call_id}); return; }
+    incomingCallId = info.call_id;
     callUi((info.call_type==='video'?'Video':'Voice')+' call', info.caller_name+' is calling you', [
       {label:'Accept',fn:async()=>{try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:info.call_type==='video'}); activeCall={id:info.call_id,cid:info.conversation_id,type:info.call_type,scope:info.call_scope,stream,pcs:new Map(),accepted:new Set([myId()]),initiator:false,participants:new Set([myId()])}; addCallVideo('me',stream,true); socket.emit('call:accept',{call_id:info.call_id}); callUi('Connected call','Connecting media…',[{label:'Mute mic',fn:()=>toggleCallTrack('audio')},...(info.call_type==='video'?[{label:'Camera off',fn:()=>toggleCallTrack('video')}]:[]),{label:'End call',cls:'reject',fn:endCall}]); }catch(e){socket.emit('call:reject',{call_id:info.call_id});closeCallUi();alert('Mic/camera permission nahi mili.');}}},
-      {label:'Reject',cls:'reject',fn:()=>{socket.emit('call:reject',{call_id:info.call_id});closeCallUi();}}
+      {label:'Reject',cls:'reject',fn:()=>{socket.emit('call:reject',{call_id:info.call_id});incomingCallId=null;closeCallUi();}}
     ]);
+    startRing();
+    setTimeout(()=>{ if(incomingCallId===info.call_id && (!activeCall||activeCall.id!==info.call_id)){ incomingCallId=null; closeCallUi(); } }, 50000);
   }
   async function endCall() {
     if(!activeCall){closeCallUi();return;} const c=activeCall; activeCall=null;
@@ -1471,13 +1500,117 @@
     socket.on('call:accepted',async info=>{if(!activeCall || activeCall.id!==info.call_id)return; activeCall.participants=new Set(info.participants||[myId()]); for(const id of activeCall.participants){if(id!==myId() && myId()<id) await createOfferFor(id);} $('callStatus').textContent='Call in progress';});
     socket.on('call:participant-joined',async info=>{if(!activeCall || activeCall.id!==info.call_id)return; activeCall.participants.add(info.user_id); if(myId()<info.user_id) await createOfferFor(info.user_id);});
     socket.on('call:participant-left',info=>{if(activeCall && activeCall.id===info.call_id){const pc=activeCall.pcs.get(info.user_id);if(pc)pc.close();activeCall.pcs.delete(info.user_id);activeCall.participants.delete(info.user_id);const v=document.getElementById('call-video-'+info.user_id);v?.remove();}});
-    socket.on('call:rejected',info=>{if(activeCall && activeCall.id===info.call_id) $('callStatus').textContent=info.name+' declined the call';});
+    socket.on('call:rejected',info=>{if(activeCall && activeCall.id===info.call_id){ $('callStatus').textContent=info.name+' declined the call'; if(activeCall.scope==='one_to_one') setTimeout(()=>{ if(activeCall && activeCall.id===info.call_id) endCall(); },2000); }});
+    socket.on('call:handled',info=>{ if(incomingCallId===info.call_id && (!activeCall || activeCall.id!==info.call_id)){ incomingCallId=null; closeCallUi(); } });
+    socket.on('call:ended',info=>{ if(incomingCallId===info.call_id && (!activeCall || activeCall.id!==info.call_id)){ incomingCallId=null; closeCallUi(); } });
     socket.on('call:ended',info=>{if(activeCall && activeCall.id===info.call_id) endCall();});
     socket.on('call:signal',async info=>{
       if(!activeCall || activeCall.id!==info.call_id)return; const pc=await makePeer(info.from_id); const sig=info.signal||{};
       try { if(sig.description){await pc.setRemoteDescription(sig.description); if(sig.description.type==='offer'){const answer=await pc.createAnswer();await pc.setLocalDescription(answer);socket.emit('call:signal',{call_id:activeCall.id,target_id:info.from_id,signal:{description:pc.localDescription}});}} else if(sig.candidate){await pc.addIceCandidate(sig.candidate);} } catch(e){console.warn('Call signal error',e);}
     });
     socket.on('disconnect',()=>{socketCallHandlersInstalled=false;if(activeCall)endCall();});
+  }
+
+  // ---------------- Notifications + ringtone ----------------
+  let incomingCallId = null;
+  let audioCtx = null;
+  function getAudio() {
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    } catch (_) { return null; }
+  }
+  // Browser pehle tap ke baad hi awaaz bajane deta hai - isliye pehle touch par audio "unlock" karo
+  ['pointerdown', 'keydown', 'touchstart'].forEach((ev) => window.addEventListener(ev, () => getAudio(), { passive: true }));
+  function tone(a, freq, t, dur, vol) {
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = 'sine'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t + dur + 0.05);
+  }
+  let ringTimer = null;
+  function ringOnce() {
+    const a = getAudio();
+    if (a) { const t = a.currentTime; tone(a, 880, t, 0.35, 0.35); tone(a, 660, t + 0.4, 0.35, 0.35); tone(a, 880, t + 1.0, 0.35, 0.35); tone(a, 660, t + 1.4, 0.35, 0.35); }
+    try { if (navigator.vibrate) navigator.vibrate([400, 200, 400]); } catch (_) {}
+  }
+  function startRing() { stopRing(); ringOnce(); ringTimer = setInterval(ringOnce, 2800); }
+  function stopRing() { if (ringTimer) { clearInterval(ringTimer); ringTimer = null; } try { if (navigator.vibrate) navigator.vibrate(0); } catch (_) {} }
+  function pingSound() { const a = getAudio(); if (a) { const t = a.currentTime; tone(a, 1040, t, 0.12, 0.18); tone(a, 1320, t + 0.1, 0.16, 0.18); } }
+
+  const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  function b64ToBytes(b) { const pad = '='.repeat((4 - b.length % 4) % 4); const r = atob((b + pad).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from([...r].map((c) => c.charCodeAt(0))); }
+  let pushKeyCache = null;
+  async function getPushKey() {
+    if (pushKeyCache !== null) return pushKeyCache;
+    try { const r = await fetch('/api/push-key'); pushKeyCache = r.ok ? (await r.json()).key : ''; } catch (_) { return ''; }
+    return pushKeyCache;
+  }
+  function sameKey(buf, bytes) { if (!buf) return false; const a = new Uint8Array(buf); return a.length === bytes.length && a.every((v, i) => v === bytes[i]); }
+  async function registerPush(askPermission) {
+    if (!pushSupported()) return 'unsupported';
+    const key = await getPushKey(); if (!key) return 'server_off';
+    if (Notification.permission === 'default' && askPermission) await Notification.requestPermission();
+    if (Notification.permission !== 'granted') return Notification.permission;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const keyBytes = b64ToBytes(key);
+      let sub = await reg.pushManager.getSubscription();
+      if (sub && !sameKey(sub.options && sub.options.applicationServerKey, keyBytes)) { await sub.unsubscribe(); sub = null; }
+      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes });
+      const j = sub.toJSON();
+      const { error } = await sb.rpc('save_push_sub', { ep: j.endpoint, p256: j.keys.p256dh, auth_key: j.keys.auth });
+      if (error) { console.warn('push save error', error); return 'db_error'; }
+      syncPushMutes();
+      return 'on';
+    } catch (e) { console.warn('push error', e); return 'error'; }
+  }
+  function syncPushMutes() {
+    const st = qualityState();
+    Object.keys(st).forEach((cid) => { if (st[cid] && 'muted' in st[cid]) sb.rpc('set_push_muted', { cid, muted: !!st[cid].muted }).then(() => {}, () => {}); });
+  }
+  async function updateNotifBanner() {
+    const b = $('notifBanner'), hint = $('notifHint'), btn = $('notifBtn'); if (!b) return;
+    const hide = () => b.classList.add('hidden');
+    const showB = (text, withBtn) => { hint.textContent = text; btn.style.display = withBtn ? '' : 'none'; b.classList.remove('hidden'); };
+    if (!pushSupported()) { if (isIOS && !isStandalone) showB('iPhone par: Safari me Share → "Add to Home Screen" karo, phir app wahin se kholo. Tab notifications on ho payengi.', false); else hide(); return; }
+    const key = await getPushKey(); if (!key) { hide(); return; }
+    if (Notification.permission === 'granted') hide();
+    else if (Notification.permission === 'denied') showB('Notifications block hain. Phone/browser Settings → Site settings → Notifications me Baatein ko Allow karo.', false);
+    else showB('App band ho tab bhi message aur call ki ring aayegi.', true);
+  }
+  $('notifBtn').onclick = async () => { getAudio(); await registerPush(true); updateNotifBanner(); };
+
+  // Notification dabane par seedha wahi chat kholo
+  let pendingOpenCid = (() => { try { const c = new URLSearchParams(location.search).get('c'); return c && /^[0-9a-f-]{36}$/i.test(c) ? c : null; } catch (_) { return null; } })();
+  function openFromNotif(cid) {
+    if (!cid) return;
+    const c = convs.find((x) => x.id === cid);
+    if (c) openConv(c); else loadList().then(() => { const c2 = convs.find((x) => x.id === cid); if (c2) openConv(c2); });
+  }
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data && e.data.type === 'notif-click' && session && profile && !(activeCall)) openFromNotif(e.data.conversation_id);
+    });
+  }
+
+  // ---------------- App stats (sirf numbers) ----------------
+  let statsTimer = null, appStats = { members: 0, installed: 0 };
+  window.addEventListener('appinstalled', () => { sb.rpc('mark_installed').then(() => loadStats(), () => {}); });
+  async function loadStats() {
+    const { data, error } = await sb.rpc('app_stats');
+    if (!error && data) { appStats = data; updateStatsBar(); }
+  }
+  function updateStatsBar() {
+    const bar = $('statsBar'); if (!bar || !profile) return;
+    $('stOnline').textContent = Math.max(onlineUserIds.size, 1);
+    $('stInstalled').textContent = appStats.installed || 0;
+    $('stMembers').textContent = appStats.members || 0;
+    bar.classList.remove('hidden');
   }
 
   // ---------------- Start ----------------
