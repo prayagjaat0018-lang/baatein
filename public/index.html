@@ -226,6 +226,13 @@
   #chList .gm .cb { font-size:16px; padding:6px 9px; }
   .madeby { text-align:center; color:var(--muted); font-size:12px; padding:14px 16px 6px; }
   .madeby b { color:#fff; }
+  #themeSheet { position:fixed; inset:0; z-index:1100; background:rgba(4,4,10,.82); display:flex; align-items:flex-end; justify-content:center; }
+  #themeSheet.hidden { display:none !important; }
+  #themeSheet .box { width:100%; max-width:480px; background:#171727; border-radius:24px 24px 0 0; padding:18px 18px calc(18px + env(safe-area-inset-bottom,0px)); color:#fff; display:flex; flex-direction:column; gap:10px; }
+  #themeSheet h3 { margin:0; } #themeSheet .tsub { margin:0; color:var(--muted); font-size:13px; }
+  .tgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .tgrid button { aspect-ratio:1; border-radius:16px; border:2px solid transparent; cursor:pointer; font-size:11px; font-weight:700; color:#fff; text-shadow:0 1px 3px rgba(0,0,0,.6); }
+  .tgrid button.on { border-color:#C8FF3D; }
   /* ---- List screen: compact layout ---- */
   .notif-banner { margin:2px 16px 8px; padding:8px 8px 8px 12px; gap:8px; border-radius:14px; }
   .notif-banner b { display:inline; font-size:13px; margin:0; }
@@ -242,6 +249,8 @@
   #selToggle { width:42px; height:40px; padding:0; font-size:17px; border-radius:12px; }
   .quality-tabs button { padding:6px 4px; font-size:12px; }
   .fab { bottom:78px; }
+  .streak { font-size:12px; font-weight:700; margin-left:6px; color:#FF9A3D; white-space:nowrap; }
+  .streak.risk { opacity:.6; }
   #chatList { padding-bottom:84px; }
   #bottomNav { display:flex; flex-shrink:0; padding:6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); background:rgba(14,14,24,.97); border-top:1px solid #23233A; }
   #bottomNav.hidden { display:none !important; }
@@ -524,6 +533,7 @@
       <button class="back" id="convBack" type="button" aria-label="Back">&#8592;</button>
       <div class="avatar" id="convAvatar">?</div>
       <div class="title"><b id="convName"></b><small id="convUser"></small></div>
+      <button class="callBtn" id="themeBtn" type="button" title="Chat theme" aria-label="Chat theme">🎨</button>
       <button class="callBtn" id="audioCallBtn" type="button" title="Voice call" aria-label="Voice call"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
       <button class="callBtn" id="videoCallBtn" type="button" title="Video call" aria-label="Video call"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></button>
     </div>
@@ -727,6 +737,19 @@
 
 </div>
 
+<div id="themeSheet" class="hidden" role="dialog" aria-modal="true" aria-label="Chat theme">
+  <div class="box">
+    <h3>🎨 Chat theme</h3>
+    <p class="tsub">Ye theme samne wale ko bhi dikhegi.</p>
+    <div class="tgrid" id="themeGrid"></div>
+    <button class="main" id="themePhotoBtn" type="button">🖼 Gallery se photo chuno</button>
+    <button class="ghost" id="themeReset" type="button">Default theme par wapas</button>
+    <p class="error" id="themeErr"></p>
+    <button class="ghost" id="themeClose" type="button">Close</button>
+    <input type="file" id="themeFile" accept="image/*" class="hidden">
+  </div>
+</div>
+
 <div id="userCard" class="hidden" role="dialog" aria-modal="true" aria-label="Profile">
   <div class="box">
     <div class="ucPhoto" id="ucPhoto">?</div>
@@ -913,6 +936,15 @@
       else if (err.message === 'no_profile') openProfile(true, profile);
     });
 
+    socket.on('theme:updated', (t) => {
+      const c = convs.find((x) => x.id === t.conversation_id); if (c) c.theme = t.theme;
+      if (!openConvObj || openConvObj.id !== t.conversation_id) return;
+      openConvObj.theme = t.theme; applyChatTheme(openConvObj);
+      if (t.by_id !== myId() && current === 'conv') {
+        const el = document.createElement('div'); el.className = 'system'; el.textContent = '🎨 ' + t.by + ' ne chat theme badli';
+        $('messages').appendChild(el); scrollDown();
+      }
+    });
     socket.on('group:updated', async (g) => {
       await loadList();
       const cid = g && g.conversation_id;
@@ -936,6 +968,7 @@
         if (current === 'list') renderList();
       }
       if (!fromMe && !viewing && !document.hidden && !(c && chatFlags(c.id).muted)) pingSound();
+      if (c && !c.is_group) scheduleStreaks();
       if (viewing) {
         addMessage(m);
         scrollDown();
@@ -1005,7 +1038,7 @@
   async function loadList() {
     const me = myId();
     const { data: mine, error } = await sb.from('conversation_members')
-      .select('conversation_id, cleared_at, conversations!inner(id,is_group,name,last_text,last_message_at)')
+      .select('conversation_id, cleared_at, conversations!inner(id,is_group,name,last_text,last_message_at,theme)')
       .eq('user_id', me);
     if (error || !mine) return;
     const ids = mine.map((r) => r.conversation_id);
@@ -1030,6 +1063,7 @@
         last_text: r.conversations.last_text || '',
         last_message_at: r.conversations.last_message_at,
         cleared_at: r.cleared_at || null,
+        theme: r.conversations.theme || null,
         unread: 0,
       };
     });
@@ -1041,6 +1075,7 @@
       const viewing = openConvObj && openConvObj.id === c.id && current === 'conv';
       c.unread = viewing ? 0 : (um[c.id] || 0);
     });
+    loadStreaks();
     if (current === 'list') renderList();
   }
 
@@ -1081,6 +1116,13 @@
       const mid = document.createElement('div'); mid.className = 'mid';
       const top = document.createElement('div'); top.className = 'top';
       const nm = document.createElement('b'); nm.textContent = c.is_group ? '👥 ' + c.title : dn(c.title, c.other_user_id);
+      const stk = streakMap.get(c.id);
+      if (stk && stk.streak >= 2) {
+        const sp = document.createElement('span'); sp.className = 'streak' + (!stk.my_done ? ' risk' : '');
+        sp.textContent = '🔥' + stk.streak + (!stk.my_done ? '⏳' : '');
+        sp.title = !stk.my_done ? 'Aaj message bhejo, warna streak toot jayegi' : stk.streak + ' din ki streak';
+        nm.appendChild(sp);
+      }
       const tm = document.createElement('time'); tm.textContent = fmtTime(c.last_message_at);
       top.appendChild(nm); top.appendChild(tm);
       const lastRow = document.createElement('div');
@@ -1194,6 +1236,7 @@
     $('convName').textContent = c.is_group ? c.title : dn(c.title, c.other_user_id);
     $('convName').classList.toggle('grp', !!c.is_group);
     gNames = {}; gCount = 0;
+    applyChatTheme(c);
     if (c.is_group) await loadGroupNames(c.id);
     $('convUser').textContent = c.is_group ? 'Group chat' : (c.username ? '@' + c.username : '');
     updateConversationPresence();
@@ -1316,7 +1359,11 @@
   function updateConversationPresence() {
     if (!openConvObj) return;
     if (openConvObj.is_group) $('convUser').textContent = (gCount ? gCount + ' members · ' : '') + 'tap for group info';
-    else $('convUser').textContent = (openConvObj.username ? '@' + openConvObj.username + ' · ' : '') + (onlineUserIds.has(openConvObj.other_user_id) ? 'online' : 'offline');
+    else {
+      const stk = streakMap.get(openConvObj.id);
+      $('convUser').textContent = (openConvObj.username ? '@' + openConvObj.username + ' · ' : '') + (onlineUserIds.has(openConvObj.other_user_id) ? 'online' : 'offline')
+        + (stk && stk.streak >= 2 ? ' · 🔥 ' + stk.streak + ' din' + (!stk.my_done ? ' (aaj bhejo!)' : '') : '');
+    }
   }
   function scrollDown() { $('messages').scrollTop = $('messages').scrollHeight; }
 
@@ -1915,6 +1962,17 @@
     socket.on('disconnect',()=>{socketCallHandlersInstalled=false;if(activeCall)endCall();});
   }
 
+  // ---------------- Streaks 🔥 ----------------
+  let streakMap = new Map(), streakTimer = null;
+  async function loadStreaks() {
+    const { data, error } = await sb.rpc('chat_streaks');
+    if (error || !data) return;
+    streakMap = new Map(data.map((r) => [r.conversation_id, r]));
+    if (current === 'list') renderList();
+    if (openConvObj && current === 'conv') updateConversationPresence();
+  }
+  function scheduleStreaks() { clearTimeout(streakTimer); streakTimer = setTimeout(loadStreaks, 1500); }
+
   // ---------------- Emoji reactions ----------------
   const REACTION_SET = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
   const reactMap = new Map(); // message_id -> Map(user_id -> emoji)
@@ -2225,6 +2283,69 @@
   };
   $('convName').parentElement.addEventListener('click', () => { if (openConvObj && openConvObj.is_group) openGroupInfo(); });
 
+  // ---------------- Chat theme (dono taraf dikhti hai) ----------------
+  const THEMES = {
+    sunset: 'linear-gradient(160deg,#ff7e5f,#6C47FF)',
+    ocean: 'linear-gradient(160deg,#00c6ff,#0b3d91)',
+    forest: 'linear-gradient(160deg,#134e5e,#71b280)',
+    night: 'linear-gradient(160deg,#0f0c29,#302b63,#24243e)',
+    rose: 'linear-gradient(160deg,#ff6a95,#4a1e5a)',
+    lime: 'linear-gradient(160deg,#C8FF3D,#0B0B12 80%)',
+    gold: 'linear-gradient(160deg,#f7971e,#3a1c71)',
+  };
+  const themeUrlCache = new Map();
+  async function applyChatTheme(c) {
+    const m = $('messages'); if (!m) return;
+    const t = c && c.theme;
+    if (!t) { m.style.background = ''; return; }
+    if (t.startsWith('preset:')) { const p = THEMES[t.slice(7)]; m.style.background = p ? 'linear-gradient(rgba(11,11,18,.25),rgba(11,11,18,.25)), ' + p : ''; return; }
+    if (t.startsWith('photo:')) {
+      const path = t.slice(6); let url = themeUrlCache.get(path);
+      if (!url) { const { data } = await sb.storage.from('chat-media').createSignedUrl(path, 21600); url = data && data.signedUrl; if (url) themeUrlCache.set(path, url); }
+      if (!openConvObj || openConvObj.id !== c.id) return;
+      m.style.background = url ? 'linear-gradient(rgba(11,11,18,.5),rgba(11,11,18,.5)), url("' + url + '") center/cover no-repeat' : '';
+    }
+  }
+  async function setChatTheme(theme) {
+    const c = openConvObj; if (!c) return false;
+    $('themeErr').textContent = '';
+    const { error } = await sb.rpc('set_chat_theme', { cid: c.id, new_theme: theme });
+    if (error) { $('themeErr').textContent = 'Theme nahi lag payi: ' + error.message; return false; }
+    c.theme = theme; const cc = convs.find((x) => x.id === c.id); if (cc) cc.theme = theme;
+    applyChatTheme(c);
+    if (socket) socket.emit('theme:changed', { conversation_id: c.id });
+    paintThemeGrid();
+    return true;
+  }
+  function paintThemeGrid() {
+    const g = $('themeGrid'); g.innerHTML = '';
+    const cur = openConvObj && openConvObj.theme;
+    Object.keys(THEMES).forEach((k) => {
+      const b = document.createElement('button'); b.type = 'button'; b.style.background = THEMES[k]; b.textContent = k[0].toUpperCase() + k.slice(1);
+      if (cur === 'preset:' + k) b.classList.add('on');
+      b.onclick = () => setChatTheme('preset:' + k);
+      g.appendChild(b);
+    });
+  }
+  $('themeBtn').onclick = () => { if (!openConvObj) return; $('themeErr').textContent = ''; paintThemeGrid(); $('themeSheet').classList.remove('hidden'); };
+  $('themeClose').onclick = () => $('themeSheet').classList.add('hidden');
+  $('themeSheet').addEventListener('click', (e) => { if (e.target === $('themeSheet')) $('themeSheet').classList.add('hidden'); });
+  $('themeReset').onclick = () => setChatTheme(null);
+  $('themePhotoBtn').onclick = () => $('themeFile').click();
+  $('themeFile').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f || !openConvObj) return;
+    if (!/^image\//.test(f.type)) { $('themeErr').textContent = 'Sirf photo chuno.'; return; }
+    const c = openConvObj, btn = $('themePhotoBtn'); btn.disabled = true; btn.textContent = 'Upload ho raha hai…';
+    try {
+      const blob = await compress(f);
+      const path = c.id + '/' + myId() + '/theme_' + crypto.randomUUID() + '.jpg';
+      const up = await sb.storage.from('chat-media').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+      if (up.error) throw up.error;
+      if (await setChatTheme('photo:' + path)) $('themeSheet').classList.add('hidden');
+    } catch (err) { $('themeErr').textContent = 'Upload nahi hua: ' + (err.message || err); }
+    btn.disabled = false; btn.textContent = '🖼 Gallery se photo chuno';
+  });
+
   // ---------------- Dusre ki profile dekhna ----------------
   async function showUserCard(uid) {
     if (!uid) return;
@@ -2373,199 +2494,5 @@
     }
   })();
 </script>
-  <!-- ===== Chat Theme (wallpaper): ise </body> se just pehle paste karo (credit wale snippet ke neeche) ===== -->
-<style id="themecss">
-  #conv { position: relative; isolation: isolate; }
-  #wall { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; display: none; }
-  #conv.hasWall #wall { display: block; }
-  #wall .wimg { position: absolute; inset: -24px; background-size: cover; background-position: center; filter: blur(var(--wb, 0px)); animation: wallIn .5s ease both; }
-  #wall .wdim { position: absolute; inset: 0; background: rgba(6, 6, 14, var(--wd, .3)); }
-  @keyframes wallIn { from { opacity: 0; } to { opacity: 1; } }
-  #conv.hasWall #messages { background-image: none; }
-  #conv.hasWall #typing { text-shadow: 0 1px 8px rgba(0, 0, 0, .9); }
-  #conv .topbar .callBtn, #conv .topbar .themeBtn { width: 38px; height: 38px; }
-  .themeBtn { border: 0; border-radius: 50%; display: grid; place-items: center; background: rgba(255, 255, 255, .07); color: var(--lime, #C8FF3D); cursor: pointer; flex-shrink: 0; }
-  .themeBtn:hover { background: rgba(200, 255, 61, .16); }
-
-  #themeSheet { position: fixed; inset: 0; z-index: 95; display: none; }
-  #themeSheet.open { display: block; }
-  #themeSheet .tsBack { position: absolute; inset: 0; background: rgba(0, 0, 0, .22); }
-  #themeSheet .tsBox { position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto; max-width: 480px; max-height: 64vh; overflow-y: auto; padding: 16px 18px calc(22px + env(safe-area-inset-bottom, 0px)); border-radius: 28px 28px 0 0; background: rgba(20, 20, 30, .97); border: 1px solid rgba(255, 255, 255, .08); box-shadow: 0 -22px 50px -22px #000; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); animation: sheetUp .32s cubic-bezier(.22, 1, .36, 1) both; }
-  @keyframes sheetUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
-  .tsHead { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
-  .tsHead b { font-size: 18px; }
-  .tsX { width: 36px; height: 36px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .08); color: inherit; font-size: 15px; cursor: pointer; }
-  .tsScope { display: flex; gap: 6px; padding: 4px; border-radius: 999px; background: rgba(255, 255, 255, .06); margin-bottom: 14px; }
-  .tsScope button { flex: 1; border: 0; border-radius: 999px; padding: 9px 6px; background: transparent; color: var(--muted, #9A9BB4); font-weight: 700; font-size: 13px; cursor: pointer; }
-  .tsScope button.on { background: linear-gradient(135deg, #6C47FF, #8A6CFF); color: #fff; }
-  .tsRow { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 12px; scrollbar-width: none; }
-  .tsRow::-webkit-scrollbar { display: none; }
-  .tsSw { flex: 0 0 auto; width: 56px; height: 56px; border-radius: 18px; border: 2px solid transparent; cursor: pointer; background-size: cover; background-position: center; color: #fff; font-size: 11px; font-weight: 700; display: grid; place-items: center; box-shadow: 0 8px 18px -10px #000; }
-  .tsSw.none { background: #15151F; border: 2px dashed rgba(255, 255, 255, .25); }
-  .tsSw.on { border-color: var(--lime, #C8FF3D); box-shadow: 0 0 0 3px rgba(200, 255, 61, .25); }
-  #themeSheet label.tsSl { display: grid; grid-template-columns: 74px 1fr 38px; align-items: center; gap: 10px; margin: 4px 0; padding: 0; min-height: 0; height: 38px; font-size: 13px; color: var(--muted, #9A9BB4); }
-  .tsSl input { width: 100%; accent-color: #C8FF3D; }
-  .tsSl output { text-align: right; color: var(--text, #fff); font-weight: 700; }
-  .tsSl.off { opacity: .4; pointer-events: none; }
-  .tsActs { display: flex; gap: 10px; margin-top: 14px; }
-  .tsActs button { border: 0; border-radius: 999px; padding: 14px 18px; font-weight: 800; font-size: 14px; cursor: pointer; }
-  .tsPick { flex: 1; background: linear-gradient(135deg, #D8FF6A, #C8FF3D); color: #0B0B12; }
-  .tsReset { background: rgba(255, 255, 255, .09); color: var(--text, #fff); }
-</style>
-<script>
-(function () {
-  'use strict';
-  var $ = function (id) { return document.getElementById(id); };
-  var conv = $('conv'), msgs = $('messages');
-  if (!conv || !msgs) return;
-
-  var PRESETS = [
-    { n: 'Aurora', v: 'linear-gradient(160deg,#1b1464 0%,#6C47FF 55%,#00c9a7 100%)' },
-    { n: 'Sunset', v: 'linear-gradient(160deg,#2b1055 0%,#d53369 60%,#ff9a44 100%)' },
-    { n: 'Ocean', v: 'linear-gradient(160deg,#021B79 0%,#0575E6 100%)' },
-    { n: 'Forest', v: 'linear-gradient(160deg,#0f2027 0%,#203a43 50%,#2c5364 100%)' },
-    { n: 'Rose', v: 'linear-gradient(160deg,#200122 0%,#6f0000 100%)' },
-    { n: 'Lime', v: 'linear-gradient(160deg,#0B0B12 0%,#1f3300 55%,#7fb800 100%)' },
-    { n: 'Candy', v: 'linear-gradient(160deg,#4b1d6b 0%,#ff4d8d 100%)' }
-  ];
-
-  // ---------- Storage (sirf is phone/browser me) ----------
-  function key() { var u = (typeof myId === 'function' && myId()) || 'me'; return 'baatein_theme_v1_' + u; }
-  function load() { try { return JSON.parse(localStorage.getItem(key())) || {}; } catch (e) { return {}; } }
-  function save(s) {
-    try { localStorage.setItem(key(), JSON.stringify(s)); return true; }
-    catch (e) { alert('Phone me jagah kam hai. Koi purana wallpaper hata do.'); return false; }
-  }
-  function curId() { return (typeof openConvObj !== 'undefined' && openConvObj && openConvObj.id) || null; }
-  function resolve(cid) { var s = load(); return (s.chats && s.chats[cid]) || s.all || null; }
-
-  // ---------- Wallpaper layer ----------
-  var wall = document.createElement('div'); wall.id = 'wall';
-  wall.innerHTML = '<div class="wimg"></div><div class="wdim"></div>';
-  conv.insertBefore(wall, conv.firstChild);
-  var lastPaint = '';
-  function paint(t) {
-    var img = wall.firstChild;
-    if (!t || t.t === 'none') { conv.classList.remove('hasWall'); img.style.backgroundImage = ''; lastPaint = ''; return; }
-    var k = t.t + '|' + t.v.length + '|' + t.v.slice(0, 40);
-    img.style.backgroundImage = t.t === 'img' ? 'url("' + t.v + '")' : t.v;
-    wall.style.setProperty('--wb', (t.blur || 0) + 'px');
-    wall.style.setProperty('--wd', String((t.dim || 0) / 100));
-    conv.classList.add('hasWall');
-    if (k !== lastPaint) { lastPaint = k; img.style.animation = 'none'; void img.offsetWidth; img.style.animation = ''; }
-  }
-  function apply() { var c = curId(); paint(c ? resolve(c) : null); }
-
-  // Chat badalte hi apni theme laga do
-  var lastCid = null;
-  setInterval(function () {
-    var c = curId();
-    if (c !== lastCid) { lastCid = c; apply(); sheet.classList.remove('open'); }
-    if (conv.classList.contains('hidden')) sheet.classList.remove('open');
-  }, 300);
-
-  // ---------- Theme button (chat ke upar) ----------
-  var btn = document.createElement('button');
-  btn.type = 'button'; btn.className = 'themeBtn'; btn.title = 'Chat theme'; btn.setAttribute('aria-label', 'Chat theme');
-  btn.innerHTML = '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
-  var anchor = $('audioCallBtn') || $('videoCallBtn');
-  var bar = conv.querySelector('.topbar');
-  if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(btn, anchor); else if (bar) bar.appendChild(btn);
-
-  // ---------- Theme sheet ----------
-  var sheet = document.createElement('div'); sheet.id = 'themeSheet';
-  sheet.innerHTML =
-    '<div class="tsBack"></div><div class="tsBox">' +
-    '<div class="tsHead"><b>Chat theme</b><button type="button" class="tsX" aria-label="Close">&#10005;</button></div>' +
-    '<div class="tsScope"><button type="button" data-s="chat" class="on">Sirf is chat</button><button type="button" data-s="all">Sabhi chats</button></div>' +
-    '<div class="tsRow" id="tsSw"></div>' +
-    '<label class="tsSl" id="tsDimL">Andhera<input type="range" id="tsDim" min="0" max="85" value="30"><output id="tsDimV">30%</output></label>' +
-    '<label class="tsSl" id="tsBlurL">Blur<input type="range" id="tsBlur" min="0" max="14" value="0"><output id="tsBlurV">0</output></label>' +
-    '<div class="tsActs"><button type="button" class="tsPick" id="tsPick">Gallery se photo chuno</button><button type="button" class="tsReset" id="tsReset">Reset</button></div>' +
-    '<input type="file" id="tsFile" accept="image/*" hidden></div>';
-  document.body.appendChild(sheet);
-
-  var scope = 'chat';
-  function entry() {            // abhi jis scope ko edit kar rahe hain uski theme
-    var s = load(), cid = curId();
-    return scope === 'all' ? (s.all || null) : ((s.chats && s.chats[cid]) || null);
-  }
-  function shown() { return entry() || (curId() ? resolve(curId()) : null); }
-
-  function setTheme(t) {
-    var cid = curId(); if (!cid) return;
-    var s = load(); s.chats = s.chats || {};
-    if (scope === 'all') { if (t) s.all = t; else delete s.all; delete s.chats[cid]; }
-    else { if (t) s.chats[cid] = t; else delete s.chats[cid]; }
-    if (save(s)) { apply(); sync(); }
-  }
-
-  function sync() {
-    var t = shown(), sw = $('tsSw'); sw.innerHTML = '';
-    function add(cls, bg, label, onclick, on) {
-      var b = document.createElement('button'); b.type = 'button'; b.className = 'tsSw ' + cls + (on ? ' on' : '');
-      if (bg) b.style.backgroundImage = bg; if (label) b.textContent = label; b.title = label || 'Theme';
-      b.onclick = onclick; sw.appendChild(b);
-    }
-    add('none', '', 'Off', function () { setTheme({ t: 'none', v: 'none' }); }, !!t && t.t === 'none');
-    if (t && t.t === 'img') add('', 'url("' + t.v + '")', '', function () {}, true);
-    PRESETS.forEach(function (p) {
-      add('', p.v, '', function () { setTheme({ t: 'grad', v: p.v, dim: 0, blur: 0 }); }, !!t && t.t === 'grad' && t.v === p.v);
-    });
-    var active = !!t && t.t !== 'none';
-    $('tsDimL').classList.toggle('off', !active); $('tsBlurL').classList.toggle('off', !active);
-    $('tsDim').value = active ? (t.dim || 0) : 30; $('tsDimV').textContent = $('tsDim').value + '%';
-    $('tsBlur').value = active ? (t.blur || 0) : 0; $('tsBlurV').textContent = $('tsBlur').value;
-    var btns = sheet.querySelectorAll('.tsScope button');
-    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle('on', btns[i].getAttribute('data-s') === scope);
-  }
-
-  function tweak() {
-    var t = shown(); if (!t || t.t === 'none') return;
-    var c = { t: t.t, v: t.v, dim: +$('tsDim').value, blur: +$('tsBlur').value };
-    $('tsDimV').textContent = c.dim + '%'; $('tsBlurV').textContent = c.blur;
-    var cid = curId(), s = load(); s.chats = s.chats || {};
-    if (scope === 'all') s.all = c; else s.chats[cid] = c;
-    if (save(s)) paint(c);
-  }
-  $('tsDim').addEventListener('input', tweak);
-  $('tsBlur').addEventListener('input', tweak);
-
-  function fileToDataURL(file) {
-    return new Promise(function (res, rej) {
-      var url = URL.createObjectURL(file), im = new Image();
-      im.onload = function () {
-        var w = im.naturalWidth, h = im.naturalHeight, k = Math.min(1, 1280 / Math.max(w, h));
-        var cv = document.createElement('canvas'); cv.width = Math.round(w * k); cv.height = Math.round(h * k);
-        cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
-        URL.revokeObjectURL(url);
-        var d = cv.toDataURL('image/jpeg', 0.78);
-        if (d.length > 700000) d = cv.toDataURL('image/jpeg', 0.6);
-        res(d);
-      };
-      im.onerror = function () { URL.revokeObjectURL(url); rej(new Error('bad image')); };
-      im.src = url;
-    });
-  }
-  $('tsPick').onclick = function () { $('tsFile').click(); };
-  $('tsFile').addEventListener('change', function () {
-    var f = this.files && this.files[0]; this.value = '';
-    if (!f) return;
-    fileToDataURL(f).then(function (d) { setTheme({ t: 'img', v: d, dim: 35, blur: 0 }); })
-      .catch(function () { alert('Ye photo khul nahi paayi. Koi aur photo try karo.'); });
-  });
-  $('tsReset').onclick = function () { setTheme(null); };
-
-  btn.onclick = function () { if (!curId()) return; sheet.classList.add('open'); sync(); };
-  sheet.querySelector('.tsX').onclick = function () { sheet.classList.remove('open'); };
-  sheet.querySelector('.tsBack').onclick = function () { sheet.classList.remove('open'); };
-  sheet.querySelector('.tsScope').addEventListener('click', function (e) {
-    var s = e.target && e.target.getAttribute && e.target.getAttribute('data-s');
-    if (s) { scope = s; sync(); }
-  });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') sheet.classList.remove('open'); });
-})();
-</script>
-
 </body>
 </html>
