@@ -85,10 +85,30 @@ function previewOf(text, mime, name) {
   return '📎 ' + (name || 'File');
 }
 
+// Call history (call_logs table) me likhna
+function logCall(callId, patch, tok) {
+  if (!tok) return;
+  sb('/rest/v1/call_logs?id=eq.' + callId, tok, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(patch) }).catch(() => {});
+}
+// Koi call se nikla (button se ya net/tab band hone se)
+function leaveCall(uid, callId, tok) {
+  const call = activeCalls.get(callId);
+  if (!call || !call.participants.has(uid)) return;
+  if (call.ringing && uid === call.hostId) { finishRinging(callId, call, 'cancelled'); return; }
+  call.participants.delete(uid);
+  for (const id of call.participants) io.to('user:' + id).emit('call:participant-left', { call_id: callId, user_id: uid });
+  if (call.participants.size < 2 || uid === call.hostId) {
+    for (const id of call.participants) io.to('user:' + id).emit('call:ended', { call_id: callId });
+    if (call.answeredAt) logCall(callId, { ended_at: new Date().toISOString(), duration_sec: Math.max(0, Math.round((Date.now() - call.answeredAt) / 1000)) }, tok || call.token);
+    activeCalls.delete(callId);
+  }
+}
+
 // Call khatam/cancel/miss: sabko batao, phone ki ringing notification ko "Missed call" se badlo
 function finishRinging(callId, call, reason) {
   if (call.ringTimer) { clearTimeout(call.ringTimer); call.ringTimer = null; }
   call.ringing = false;
+  logCall(callId, { status: reason === 'missed' ? 'missed' : 'cancelled', ended_at: new Date().toISOString() }, call.token);
   if (call.invited) {
     for (const id of call.invited) io.to('user:' + id).emit('call:ended', { call_id: callId, reason });
   }
@@ -332,6 +352,7 @@ io.on('connection', async (socket) => {
     const invited = new Set(ids.filter((x) => x !== uid));
     const call = { conversationId: cid, hostId: uid, hostName: name, participants: new Set([uid]), invited, ringing: true, ringTimer: null, type, scope, token, startedAt: Date.now() };
     activeCalls.set(callId, call);
+    sb('/rest/v1/call_logs', token, { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ id: callId, conversation_id: cid, caller_id: uid, call_type: type, call_scope: scope, status: 'ringing' }) }).catch(() => {});
     for (const targetId of invited) {
       io.to('user:' + targetId).emit('call:incoming', { call_id: callId, conversation_id: cid, caller_id: uid, caller_name: name, call_type: type, call_scope: scope });
     }
@@ -350,7 +371,7 @@ io.on('connection', async (socket) => {
     const callId = String(payload.call_id || ''); const call = activeCalls.get(callId);
     if (!call || !(await isMember(call.conversationId, uid, token))) return;
     call.participants.add(uid);
-    if (call.ringing) { call.ringing = false; if (call.ringTimer) { clearTimeout(call.ringTimer); call.ringTimer = null; } }
+    if (call.ringing) { call.ringing = false; call.answeredAt = Date.now(); logCall(callId, { status: 'answered', answered_at: new Date().toISOString() }, token); if (call.ringTimer) { clearTimeout(call.ringTimer); call.ringTimer = null; } }
     // Mere baaki devices par ringing band karo
     io.to('user:' + uid).emit('call:handled', { call_id: callId });
     const participantList = [...call.participants];
@@ -379,22 +400,14 @@ io.on('connection', async (socket) => {
     // 1-to-1 me reject = call khatam. Group me baaki log abhi uth sakte hain.
     if (call.scope === 'one_to_one' || (call.ringing && call.invited && call.invited.size === 0)) {
       if (call.ringTimer) { clearTimeout(call.ringTimer); call.ringTimer = null; }
+      if (call.ringing) logCall(callId, { status: 'declined', ended_at: new Date().toISOString() }, token);
       call.ringing = false;
       activeCalls.delete(callId);
     }
   });
 
   socket.on('call:leave', (payload = {}) => {
-    const callId = String(payload.call_id || ''); const call = activeCalls.get(callId);
-    if (!call) return;
-    // Caller ne uthne se pehle hi kaat diya
-    if (call.ringing && uid === call.hostId) { finishRinging(callId, call, 'cancelled'); return; }
-    call.participants.delete(uid);
-    for (const id of call.participants) io.to('user:' + id).emit('call:participant-left', { call_id: callId, user_id: uid });
-    if (call.participants.size < 2 || uid === call.hostId) {
-      for (const id of call.participants) io.to('user:' + id).emit('call:ended', { call_id: callId });
-      activeCalls.delete(callId);
-    }
+    leaveCall(uid, String(payload.call_id || ''), token);
   });
 
   // "typing..." (sirf us chat ke dusre log dekhenge)
@@ -409,7 +422,10 @@ io.on('connection', async (socket) => {
     if (current.sockets.size === 0) {
       onlineUsers.delete(uid); io.emit('presence:offline', { user_id: uid });
       // Agar main call kar raha tha aur ring ho rahi thi, to cancel
-      for (const [callId, c] of activeCalls) { if (c.hostId === uid && c.ringing) finishRinging(callId, c, 'cancelled'); }
+      for (const [callId, c] of activeCalls) {
+        if (c.hostId === uid && c.ringing) finishRinging(callId, c, 'cancelled');
+        else if (c.participants.has(uid)) leaveCall(uid, callId, token); // net chala gaya / tab band: call se nikalo
+      }
     }
   });
 });
