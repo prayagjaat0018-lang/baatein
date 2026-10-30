@@ -185,6 +185,15 @@
   .msg .reactBar { display:none; gap:2px; margin-top:6px; padding:4px 6px; border-radius:999px; background:rgba(0,0,0,.35); align-self:flex-start; }
   .msg .reactBar.open { display:flex; }
   .msg .reactBar button { border:0; background:transparent; font-size:20px; cursor:pointer; padding:2px 5px; border-radius:50%; }
+  #callhist { flex:1; display:flex; flex-direction:column; min-height:0; }
+  #chList { flex:1; overflow-y:auto; padding-bottom:20px; }
+  #chList .gm { cursor:pointer; }
+  #chList .gm .nm b.missed { color:#FF6B70; }
+  #chList .gm .nm small { display:block; margin-top:2px; }
+  #chList .gm .when { font-size:11.5px; color:var(--muted); }
+  #chList .gm .cb { font-size:16px; padding:6px 9px; }
+  .madeby { text-align:center; color:var(--muted); font-size:12px; padding:14px 16px 6px; }
+  .madeby b { color:#fff; }
   #storyRow { display: flex; gap: 14px; padding: 4px 20px 12px; overflow-x: auto; flex-shrink: 0; }
   .story { position: relative; flex-shrink: 0; width: 66px; }
   .story .sbtn { width: 100%; border: 0; background: transparent; color: var(--text); font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding: 0; }
@@ -415,6 +424,7 @@
     <input id="passInput" type="password" minlength="6" placeholder="Password (min 6 characters)" aria-label="Password" autocomplete="current-password" required>
     <p class="error" id="authError"></p>
     <button class="main" id="authBtn" type="submit">Log in</button>
+    <div class="madeby">Made with ❤️ in India by <b>Prayag</b></div>
   </form>
 
   <!-- Chats list -->
@@ -439,10 +449,12 @@
         <button type="button" class="on" data-chat-view="all">All chats</button>
         <button type="button" data-chat-view="pinned">📌 Pinned</button>
         <button type="button" data-chat-view="archived">🗂️ Archived</button>
+        <button type="button" id="callHistBtn">📞 Calls</button>
       </div>
       <div id="qualitySearchResults" class="hidden" style="max-height:170px;overflow:auto"></div>
     </div>
     <div id="chatList"></div>
+    <div class="madeby">Baatein ko <b>Prayag</b> ne banaya hai ❤️</div>
     <button class="fab" id="newBtn" type="button">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B0B12" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       New chat
@@ -470,6 +482,15 @@
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B0B12" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
       </button>
     </form>
+  </div>
+
+  <!-- Call history -->
+  <div id="callhist" class="hidden">
+    <div class="topbar">
+      <button class="back" id="chBack" type="button" aria-label="Back">&#8592;</button>
+      <div class="title"><b>Calls</b><small>Call history</small></div>
+    </div>
+    <div id="chList"></div>
   </div>
 
   <!-- New group -->
@@ -601,6 +622,7 @@
     <textarea id="pBio" maxlength="120" placeholder="Hey there! I'm on Baatein."></textarea>
     <p class="error" id="profError"></p>
     <button class="main" id="saveBtn" type="submit">Save</button>
+    <div class="madeby">Baatein · banane wala: <b>Prayag</b> (Udaipur, India)<br>Feedback ya idea ho to unhe batao!</div>
     <button class="ghost" id="logoutBtn" type="button">Log out</button>
   </form>
 
@@ -637,7 +659,7 @@
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const $ = (id) => document.getElementById(id);
-  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'profile', 'compose', 'viewer'];
+  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'callhist', 'profile', 'compose', 'viewer'];
   let current = 'loading';
   function show(name) { current = name; screens.forEach((s) => $(s).classList.toggle('hidden', s !== name)); }
 
@@ -1815,6 +1837,46 @@
     ids.forEach(renderReacts);
   }
 
+  // ---------------- Call history ----------------
+  function fmtDur(sec) { sec = Number(sec) || 0; const m = Math.floor(sec / 60), s = sec % 60; return m + ':' + String(s).padStart(2, '0'); }
+  function openCallHistory() { show('callhist'); loadCallHistory(); }
+  async function loadCallHistory() {
+    const box = $('chList'); box.innerHTML = '<div class="empty">Loading…</div>';
+    const { data, error } = await sb.from('call_logs')
+      .select('id,conversation_id,caller_id,call_type,call_scope,status,started_at,duration_sec,profiles!caller_id(name)')
+      .order('started_at', { ascending: false }).limit(100);
+    if (current !== 'callhist') return;
+    box.innerHTML = '';
+    if (error) { box.innerHTML = '<div class="empty">Call history load nahi hui: ' + String(error.message).replace(/[<>]/g, '') + '</div>'; return; }
+    const rows = (data || []).filter((r) => { const c = convs.find((x) => x.id === r.conversation_id); return c && !(c.cleared_at && r.started_at <= c.cleared_at); });
+    if (!rows.length) { const e = document.createElement('div'); e.className = 'empty'; e.innerHTML = '<b>Abhi koi call nahi</b>Kisi chat me upar ka 📞 ya 🎥 dabake call lagao.'; box.appendChild(e); return; }
+    rows.forEach((r) => {
+      const c = convs.find((x) => x.id === r.conversation_id);
+      const mine = r.caller_id === myId();
+      const kind = r.call_type === 'video' ? 'Video' : 'Voice';
+      const who = !mine && c.is_group ? ((r.profiles && r.profiles.name) || 'Someone') + ' · ' : '';
+      let label, bad = false;
+      if (r.status === 'answered') label = (mine ? '↗ Outgoing' : '↙ Incoming') + ' · ' + fmtDur(r.duration_sec);
+      else if (r.status === 'declined') label = mine ? '↗ Declined' : '↙ You declined';
+      else if (mine) label = '↗ ' + (r.status === 'missed' ? 'No answer' : r.status === 'cancelled' ? 'Cancelled' : 'Calling…');
+      else { label = '↙ Missed'; bad = true; }
+      const row = document.createElement('div'); row.className = 'gm';
+      const av = document.createElement('div'); av.className = 'avatar'; paintAvatar(av, c.title, c.is_group ? null : c.other_user_id);
+      const nm = document.createElement('div'); nm.className = 'nm';
+      const b = document.createElement('b'); b.textContent = (c.is_group ? '👥 ' : '') + c.title; if (bad) b.classList.add('missed');
+      const sm = document.createElement('small'); sm.textContent = who + kind + ' · ' + label;
+      nm.appendChild(b); nm.appendChild(sm);
+      const when = document.createElement('span'); when.className = 'when'; when.textContent = fmtTime(r.started_at);
+      const cb = document.createElement('button'); cb.type = 'button'; cb.className = 'cb'; cb.textContent = r.call_type === 'video' ? '🎥' : '📞'; cb.title = 'Call back';
+      cb.onclick = async (ev) => { ev.stopPropagation(); await openConv(c); startCall(r.call_type === 'video' ? 'video' : 'audio'); };
+      row.appendChild(av); row.appendChild(nm); row.appendChild(when); row.appendChild(cb);
+      row.onclick = () => openConv(c);
+      box.appendChild(row);
+    });
+  }
+  $('callHistBtn').onclick = openCallHistory;
+  $('chBack').onclick = () => openList();
+
   // ---------------- Group chat ----------------
   let gNames = {}, gCount = 0, gMembers = [];
   async function fetchGroupMembers(cid) {
@@ -2085,36 +2147,6 @@
       show('auth');
     }
   })();
-</script>
-  <!-- ===== Made by Prayag (credit) : ise </body> se just pehle paste karo ===== -->
-<style>
-  .sp-by { position: relative; margin-top: 18px; font-size: 13px; letter-spacing: 2.4px; text-transform: uppercase; color: #8E8FAA; opacity: 0; animation: byIn .5s ease 1.15s forwards; }
-  .sp-by b { color: var(--lime, #C8FF3D); letter-spacing: 1.2px; }
-  @keyframes byIn { to { opacity: 1; } }
-  .credit { margin: 18px 0 6px; text-align: center; font-size: 13px; color: var(--muted, #9A9BB4); }
-  .credit b { color: var(--text, #fff); }
-  .credit span { color: #FF4D8D; display: inline-block; animation: byBeat 1.6s ease-in-out infinite; }
-  @keyframes byBeat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.25); } 30% { transform: scale(1); } 45% { transform: scale(1.2); } }
-  .aboutcard { margin-top: 18px; padding: 16px 18px; border-radius: 22px; background: linear-gradient(135deg, rgba(108,71,255,.22), rgba(200,255,61,.08)); border: 1px solid rgba(255,255,255,.07); display: flex; align-items: center; gap: 14px; }
-  .aboutcard .aclogo { width: 44px; height: 44px; border-radius: 15px; background: var(--lime, #C8FF3D); display: grid; place-items: center; flex-shrink: 0; transform: rotate(-6deg); }
-  .aboutcard b { display: block; font-size: 16px; }
-  .aboutcard small { color: var(--muted, #9A9BB4); font-size: 13px; }
-  .aboutcard small strong { color: var(--lime, #C8FF3D); }
-</style>
-<script>
-(function () {
-  var NAME = 'Prayag';   // <- apna naam yaha badal sakte ho
-  var LOGO = '<svg width="22" height="22" viewBox="0 0 24 24" fill="#0B0B12"><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2h9A3.5 3.5 0 0 1 20 5.5v7a3.5 3.5 0 0 1-3.5 3.5H11l-4.6 4.2c-.7.6-1.4.2-1.4-.7V16A3.5 3.5 0 0 1 4 12.5z"/></svg>';
-  function add() {
-    var sp = document.getElementById('splash');
-    if (sp && !sp.querySelector('.sp-by')) { var d = document.createElement('div'); d.className = 'sp-by'; d.innerHTML = 'by <b>' + NAME + '</b>'; sp.appendChild(d); }
-    var au = document.getElementById('auth');
-    if (au && !au.querySelector('.credit')) { var p = document.createElement('p'); p.className = 'credit'; p.innerHTML = 'Made with <span>&#9829;</span> by <b>' + NAME + '</b> in India'; au.appendChild(p); }
-    var pf = document.getElementById('profile');
-    if (pf && !pf.querySelector('.aboutcard')) { var c = document.createElement('div'); c.className = 'aboutcard'; c.innerHTML = '<div class="aclogo">' + LOGO + '</div><div><b>Baatein</b><small>Designed &amp; built by <strong>' + NAME + '</strong></small></div>'; pf.appendChild(c); }
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add); else add();
-})();
 </script>
 </body>
 </html>
