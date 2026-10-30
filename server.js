@@ -264,6 +264,19 @@ io.on('connection', async (socket) => {
     }
   });
 
+  // Chat theme badli: DB se asli theme padho (RLS se member check ho jata hai) aur dono taraf bhejo
+  socket.on('theme:changed', async (payload = {}) => {
+    const cid = String(payload.conversation_id || '');
+    if (!UUID.test(cid)) return;
+    try {
+      if (!(await isMember(cid, uid, token))) return;
+      const r = await sb('/rest/v1/conversations?id=eq.' + cid + '&select=theme', token);
+      if (!r.ok) return;
+      const row = (await r.json())[0]; if (!row) return;
+      io.to('conv:' + cid).emit('theme:updated', { conversation_id: cid, theme: row.theme || null, by_id: uid, by: name });
+    } catch (_) {}
+  });
+
   // Group me kuch badla (naya group, member juda/hata, naam badla): sabko batao aur kamre theek karo
   socket.on('group:changed', async (payload = {}) => {
     const cid = String(payload.conversation_id || '');
