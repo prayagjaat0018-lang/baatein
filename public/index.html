@@ -149,6 +149,16 @@
   .st-opts .row { display:flex; align-items:center; gap:8px; justify-content:space-between; }
   .st-opts button { border:1px solid #3A3B4F; background:transparent; color:#fff; border-radius:10px; padding:8px 12px; font-family:inherit; font-size:12.5px; cursor:pointer; }
   #vMute { background:rgba(0,0,0,.35); border:0; color:#fff; border-radius:50%; width:34px; height:34px; font-size:16px; cursor:pointer; }
+  #userCard { position:fixed; inset:0; z-index:1100; background:rgba(4,4,10,.82); display:flex; align-items:center; justify-content:center; padding:20px; }
+  #userCard.hidden { display:none !important; }
+  #userCard .box { width:100%; max-width:340px; background:#171727; border-radius:24px; padding:28px 20px 20px; text-align:center; color:#fff; }
+  #userCard .ucPhoto { width:140px; height:140px; border-radius:50%; margin:0 auto 14px; display:flex; align-items:center; justify-content:center; font-size:56px; font-weight:700; font-family:'Sora',sans-serif; }
+  #userCard h2 { margin:0; font-size:22px; }
+  #userCard .ucUser { color:var(--violet); font-weight:600; margin-top:2px; }
+  #userCard .ucBio { margin:14px 0 4px; color:#C9C9DA; font-size:14px; line-height:1.45; word-break:break-word; }
+  #userCard .ucOn { margin-top:6px; font-size:12px; color:var(--muted); }
+  #userCard button { margin-top:16px; width:100%; }
+  .avatar.tappable { cursor:pointer; }
   #storyRow { display: flex; gap: 14px; padding: 4px 20px 12px; overflow-x: auto; flex-shrink: 0; }
   .story { position: relative; flex-shrink: 0; width: 66px; }
   .story .sbtn { width: 100%; border: 0; background: transparent; color: var(--text); font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding: 0; }
@@ -528,6 +538,17 @@
 
 </div>
 
+<div id="userCard" class="hidden" role="dialog" aria-modal="true" aria-label="Profile">
+  <div class="box">
+    <div class="ucPhoto" id="ucPhoto">?</div>
+    <h2 id="ucName"></h2>
+    <div class="ucUser" id="ucUser"></div>
+    <div class="ucOn" id="ucOn"></div>
+    <div class="ucBio" id="ucBio"></div>
+    <button type="button" class="ghost" id="ucClose">Close</button>
+  </div>
+</div>
+
 <div id="callOverlay" class="hidden" role="dialog" aria-modal="true" aria-label="Baatein call">
   <div id="callTitle">Baatein call</div>
   <div id="callStatus">Connecting…</div>
@@ -837,6 +858,7 @@
       row.className = 'row' + (c.unread ? ' unread' : '');
       row.type = 'button';
       const av = document.createElement('div'); av.className = 'avatar'; paintAvatar(av, c.title, c.is_group ? null : c.other_user_id);
+      if (!c.is_group && c.other_user_id) { av.classList.add('tappable'); av.onclick = (ev) => { ev.stopPropagation(); showUserCard(c.other_user_id); }; }
       const mid = document.createElement('div'); mid.className = 'mid';
       const top = document.createElement('div'); top.className = 'top';
       const nm = document.createElement('b'); nm.textContent = c.title;
@@ -1087,6 +1109,7 @@
       const row = document.createElement('button');
       row.className = 'row'; row.type = 'button';
       const av = document.createElement('div'); av.className = 'avatar'; avatarMap[u.id] = u.avatar_path || null; paintAvatar(av, u.name, u.id);
+      av.classList.add('tappable'); av.onclick = (ev) => { ev.stopPropagation(); showUserCard(u.id); };
       const mid = document.createElement('div'); mid.className = 'mid';
       const nm = document.createElement('b'); nm.textContent = u.name;
       const un = document.createElement('div'); un.className = 'uname'; un.textContent = '@' + u.username;
@@ -1622,6 +1645,35 @@
     });
     socket.on('disconnect',()=>{socketCallHandlersInstalled=false;if(activeCall)endCall();});
   }
+
+  // ---------------- Dusre ki profile dekhna ----------------
+  async function showUserCard(uid) {
+    if (!uid) return;
+    const card = $('userCard');
+    if (current === 'viewer') { clearTimeout(vTimer); $('vAudio').pause(); }
+    $('ucName').textContent = ''; $('ucUser').textContent = ''; $('ucBio').textContent = 'Loading…'; $('ucOn').textContent = '';
+    const ph = $('ucPhoto'); ph.textContent = '?'; ph.style.background = '#2A2A40';
+    card.classList.remove('hidden');
+    const { data, error } = await sb.from('profiles').select('id,name,username,bio,avatar_path').eq('id', uid).maybeSingle();
+    if (card.classList.contains('hidden')) return;
+    if (error || !data) { $('ucBio').textContent = 'Profile load nahi ho payi.'; return; }
+    avatarMap[uid] = data.avatar_path || null;
+    paintAvatar(ph, data.name, uid);
+    $('ucName').textContent = data.name;
+    $('ucUser').textContent = data.username ? '@' + data.username : '';
+    $('ucOn').textContent = onlineUserIds.has(uid) ? '🟢 online' : '';
+    $('ucBio').textContent = data.bio || 'Hey there! I\'m on Baatein.';
+  }
+  function closeUserCard() {
+    $('userCard').classList.add('hidden');
+    if (current === 'viewer' && vGroup) renderStatus();
+  }
+  $('ucClose').onclick = closeUserCard;
+  $('userCard').addEventListener('click', (e) => { if (e.target === $('userCard')) closeUserCard(); });
+  $('convAvatar').classList.add('tappable');
+  $('convAvatar').onclick = () => { if (openConvObj && !openConvObj.is_group) showUserCard(openConvObj.other_user_id); };
+  $('vAv').classList.add('tappable');
+  $('vAv').onclick = () => { if (vGroup && vGroup.uid !== myId()) showUserCard(vGroup.uid); };
 
   // ---------------- Notifications + ringtone ----------------
   let incomingCallId = null;
