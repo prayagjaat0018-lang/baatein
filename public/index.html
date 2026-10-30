@@ -166,6 +166,19 @@
   .row.sel { background:rgba(108,71,255,.22) !important; }
   .row .tick { color:#C8FF3D; margin-right:4px; }
   #selToggle { border:1px solid #3A3B4F; background:transparent; color:var(--muted); border-radius:12px; padding:9px 10px; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+  #newgroup, #groupinfo { flex:1; display:flex; flex-direction:column; min-height:0; overflow-y:auto; padding-bottom:20px; }
+  #newgroup .pad, #groupinfo .pad { padding:6px 16px; display:flex; flex-direction:column; gap:10px; }
+  #newgroup .pad2 label, #groupinfo label { color:var(--muted); font-size:12px; font-weight:600; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { border:0; border-radius:999px; padding:7px 12px; background:var(--violet); color:#fff; font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; }
+  .gm { display:flex; align-items:center; gap:12px; padding:10px 16px; }
+  .gm .avatar { width:44px; height:44px; flex-shrink:0; }
+  .gm .nm { flex:1; min-width:0; } .gm .nm b { display:block; font-size:15px; } .gm .nm small { color:var(--muted); }
+  .gm .tagadmin { font-size:11px; color:#C8FF3D; border:1px solid #C8FF3D; border-radius:8px; padding:2px 6px; }
+  .gm button { border:1px solid #3A3B4F; background:transparent; color:#fff; border-radius:10px; padding:7px 10px; font-family:inherit; font-size:12px; cursor:pointer; }
+  .gm button.red { border-color:#E5484D; color:#FF8A8E; }
+  .msg .sname { display:block; font-size:12px; font-weight:700; margin-bottom:2px; }
+  #convName.grp { cursor:pointer; }
   #storyRow { display: flex; gap: 14px; padding: 4px 20px 12px; overflow-x: auto; flex-shrink: 0; }
   .story { position: relative; flex-shrink: 0; width: 66px; }
   .story .sbtn { width: 100%; border: 0; background: transparent; color: var(--text); font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding: 0; }
@@ -453,6 +466,45 @@
     </form>
   </div>
 
+  <!-- New group -->
+  <div id="newgroup" class="hidden">
+    <div class="topbar">
+      <button class="back" id="ngBack" type="button" aria-label="Back">&#8592;</button>
+      <div class="title"><b>New group</b><small id="ngCount">0 members chune</small></div>
+    </div>
+    <div class="pad pad2">
+      <label for="ngName">Group ka naam</label>
+      <input id="ngName" type="text" maxlength="30" placeholder="e.g. College Gang" autocomplete="off">
+      <label for="ngSearch">Members jodo (username se)</label>
+      <input id="ngSearch" type="text" maxlength="20" placeholder="Search username..." autocapitalize="none" autocomplete="off" spellcheck="false">
+      <div class="chips" id="ngChips"></div>
+      <p class="error" id="ngErr"></p>
+    </div>
+    <div id="ngResults"></div>
+    <div class="pad"><button class="main" id="ngCreate" type="button">Create group</button></div>
+  </div>
+
+  <!-- Group info -->
+  <div id="groupinfo" class="hidden">
+    <div class="topbar">
+      <button class="back" id="giBack" type="button" aria-label="Back">&#8592;</button>
+      <div class="title"><b id="giTitle">Group</b><small id="giSub"></small></div>
+    </div>
+    <div class="pad" id="giRename">
+      <label for="giName">Group ka naam</label>
+      <div style="display:flex;gap:8px"><input id="giName" type="text" maxlength="30" style="flex:1"><button type="button" class="ghost" id="giSave" style="padding:0 14px">Save</button></div>
+    </div>
+    <div class="pad" id="giAdd">
+      <label for="giSearch">Naya member jodo</label>
+      <input id="giSearch" type="text" maxlength="20" placeholder="Search username..." autocapitalize="none" autocomplete="off" spellcheck="false">
+    </div>
+    <div id="giResults"></div>
+    <div class="pad"><label>Members</label></div>
+    <div id="giMembers"></div>
+    <p class="error" id="giErr" style="padding:0 16px"></p>
+    <div class="pad"><button class="ghost" id="giLeave" type="button" style="color:#FF8A8E">Leave group</button></div>
+  </div>
+
   <!-- Find people -->
   <div id="newchat" class="hidden">
     <div class="topbar">
@@ -462,6 +514,7 @@
     <div class="searchbox">
       <input id="searchInput" type="text" maxlength="20" placeholder="Search username..." aria-label="Search username" autocapitalize="none" autocomplete="off" spellcheck="false">
     </div>
+    <div style="padding:0 16px 8px"><button type="button" class="ghost" id="newGroupBtn" style="width:100%">👥 New group</button></div>
     <p class="error" id="searchError" style="padding:0 22px"></p>
     <div id="results" style="flex:1;overflow-y:auto"></div>
   </div>
@@ -578,7 +631,7 @@
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const $ = (id) => document.getElementById(id);
-  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'profile', 'compose', 'viewer'];
+  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'profile', 'compose', 'viewer'];
   let current = 'loading';
   function show(name) { current = name; screens.forEach((s) => $(s).classList.toggle('hidden', s !== name)); }
 
@@ -721,6 +774,17 @@
     socket.on('connect_error', (err) => {
       if (err.message === 'login_required') logout();
       else if (err.message === 'no_profile') openProfile(true, profile);
+    });
+
+    socket.on('group:updated', async (g) => {
+      await loadList();
+      const cid = g && g.conversation_id;
+      if (!openConvObj || openConvObj.id !== cid) return;
+      const c = convs.find((x) => x.id === cid);
+      if (!c) { alert('Aap ab is group me nahi hain.'); openList(); return; }
+      openConvObj = c; $('convName').textContent = c.title;
+      await loadGroupNames(cid); updateConversationPresence();
+      if (current === 'groupinfo') renderGroupInfo();
     });
 
     socket.on('message', (m) => {
@@ -873,7 +937,7 @@
       if (!c.is_group && c.other_user_id) { av.classList.add('tappable'); av.onclick = (ev) => { ev.stopPropagation(); showUserCard(c.other_user_id); }; }
       const mid = document.createElement('div'); mid.className = 'mid';
       const top = document.createElement('div'); top.className = 'top';
-      const nm = document.createElement('b'); nm.textContent = c.title;
+      const nm = document.createElement('b'); nm.textContent = (c.is_group ? '👥 ' : '') + c.title;
       const tm = document.createElement('time'); tm.textContent = fmtTime(c.last_message_at);
       top.appendChild(nm); top.appendChild(tm);
       const lastRow = document.createElement('div');
@@ -985,6 +1049,9 @@
     markRead(c.id);
     show('conv');
     $('convName').textContent = c.title;
+    $('convName').classList.toggle('grp', !!c.is_group);
+    gNames = {}; gCount = 0;
+    if (c.is_group) await loadGroupNames(c.id);
     $('convUser').textContent = c.is_group ? 'Group chat' : (c.username ? '@' + c.username : '');
     updateConversationPresence();
     peerLastReadAt = null;
@@ -1016,6 +1083,10 @@
     box.className = 'msg' + (mine ? ' mine' : '');
     if (m.id != null) box.dataset.messageId = String(m.id);
     if (m.created_at) box.dataset.createdAt = m.created_at; else if (m.time) box.dataset.createdAt = new Date(m.time).toISOString();
+    if (m.sender_name) gNames[m.sender_id] = m.sender_name;
+    if (openConvObj && openConvObj.is_group && !mine) {
+      const sn = document.createElement('span'); sn.className = 'sname'; const nmx = gNames[m.sender_id] || 'Member'; sn.textContent = nmx; sn.style.color = colorFor(nmx); box.appendChild(sn);
+    }
     if (m.reply_to) {
       const quote = document.createElement('div'); quote.className = 'replyQuote'; const original = document.querySelector('[data-message-id="' + String(m.reply_to) + '"] .text'); quote.textContent = '↳ ' + (original ? original.textContent.slice(0, 100) : ('Reply to message #' + m.reply_to)); box.appendChild(quote);
     }
@@ -1024,7 +1095,7 @@
     const time = document.createElement('span'); time.className = 'time';
     time.textContent = new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     if (m.edited_at) { const ed=document.createElement('span'); ed.className='edited'; ed.textContent='edited'; time.appendChild(ed); }
-    if (mine && m.id != null) { const ticks=document.createElement('span'); ticks.className='readTicks'; ticks.dataset.tickFor=String(m.id); ticks.textContent='✓✓'; ticks.title='Sent'; if (peerLastReadAt && m.created_at && new Date(peerLastReadAt) >= new Date(m.created_at)) { ticks.classList.add('read'); ticks.title='Read'; } time.appendChild(ticks); }
+    if (mine && m.id != null && !(openConvObj && openConvObj.is_group)) { const ticks=document.createElement('span'); ticks.className='readTicks'; ticks.dataset.tickFor=String(m.id); ticks.textContent='✓✓'; ticks.title='Sent'; if (peerLastReadAt && m.created_at && new Date(peerLastReadAt) >= new Date(m.created_at)) { ticks.classList.add('read'); ticks.title='Read'; } time.appendChild(ticks); }
     box.appendChild(time);
     if (m.id != null) {
       const actions=document.createElement('div'); actions.className='msgActions';
@@ -1095,7 +1166,7 @@
   }
   function updateConversationPresence() {
     if (!openConvObj) return;
-    if (openConvObj.is_group) $('convUser').textContent = 'Group chat';
+    if (openConvObj.is_group) $('convUser').textContent = (gCount ? gCount + ' members · ' : '') + 'tap for group info';
     else $('convUser').textContent = (openConvObj.username ? '@' + openConvObj.username + ' · ' : '') + (onlineUserIds.has(openConvObj.other_user_id) ? 'online' : 'offline');
   }
   function scrollDown() { $('messages').scrollTop = $('messages').scrollHeight; }
@@ -1694,6 +1765,134 @@
     });
     socket.on('disconnect',()=>{socketCallHandlersInstalled=false;if(activeCall)endCall();});
   }
+
+  // ---------------- Group chat ----------------
+  let gNames = {}, gCount = 0, gMembers = [];
+  async function fetchGroupMembers(cid) {
+    const { data, error } = await sb.from('conversation_members').select('user_id,role,joined_at,profiles(id,name,username,avatar_path)').eq('conversation_id', cid);
+    if (error) return [];
+    return (data || []).map((r) => { const p = r.profiles || {}; if (p.id) avatarMap[p.id] = p.avatar_path || null; return { id: r.user_id, role: r.role, name: p.name || 'Member', username: p.username || '' }; });
+  }
+  async function loadGroupNames(cid) {
+    gMembers = await fetchGroupMembers(cid);
+    gNames = {}; gMembers.forEach((m) => { gNames[m.id] = m.name; });
+    gCount = gMembers.length;
+  }
+  async function groupUserSearch(q, exclude) {
+    const { data } = await sb.from('profiles').select('id,name,username,avatar_path').ilike('username', q.replace(/[%,()]/g, '') + '%').neq('id', myId()).limit(10);
+    return (data || []).filter((u) => !exclude.has(u.id));
+  }
+  function userRow(u, label, onPick) {
+    const row = document.createElement('div'); row.className = 'gm';
+    const av = document.createElement('div'); av.className = 'avatar'; avatarMap[u.id] = u.avatar_path || avatarMap[u.id] || null; paintAvatar(av, u.name, u.id);
+    const nm = document.createElement('div'); nm.className = 'nm'; const b = document.createElement('b'); b.textContent = u.name; const sm = document.createElement('small'); sm.textContent = u.username ? '@' + u.username : '';
+    nm.appendChild(b); nm.appendChild(sm);
+    row.appendChild(av); row.appendChild(nm);
+    if (label) { const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = label; btn.onclick = onPick; row.appendChild(btn); }
+    return row;
+  }
+
+  // -- Naya group banana --
+  let ngSel = new Map(), ngTimer = null;
+  function openNewGroup() {
+    show('newgroup'); ngSel = new Map();
+    $('ngName').value = ''; $('ngSearch').value = ''; $('ngResults').innerHTML = ''; $('ngErr').textContent = '';
+    paintNgChips();
+  }
+  function paintNgChips() {
+    const box = $('ngChips'); box.innerHTML = '';
+    ngSel.forEach((u) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'chip'; b.textContent = u.name + ' ✕'; b.onclick = () => { ngSel.delete(u.id); paintNgChips(); runNgSearch(); }; box.appendChild(b); });
+    $('ngCount').textContent = ngSel.size + ' member' + (ngSel.size === 1 ? '' : 's') + ' chune';
+  }
+  async function runNgSearch() {
+    const q = $('ngSearch').value.trim().toLowerCase(), box = $('ngResults'); box.innerHTML = '';
+    if (q.length < 2) return;
+    const list = await groupUserSearch(q, new Set(ngSel.keys()));
+    if (q !== $('ngSearch').value.trim().toLowerCase()) return;
+    box.innerHTML = '';
+    if (!list.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Koi nahi mila.'; box.appendChild(e); return; }
+    list.forEach((u) => box.appendChild(userRow(u, 'Add', () => { ngSel.set(u.id, u); paintNgChips(); $('ngSearch').value = ''; box.innerHTML = ''; })));
+  }
+  $('newGroupBtn').onclick = openNewGroup;
+  $('ngBack').onclick = openNewChat;
+  $('ngSearch').addEventListener('input', () => { clearTimeout(ngTimer); ngTimer = setTimeout(runNgSearch, 250); });
+  $('ngCreate').onclick = async () => {
+    const name = $('ngName').value.trim().slice(0, 30);
+    $('ngErr').textContent = '';
+    if (!name) { $('ngErr').textContent = 'Group ka naam likho.'; return; }
+    if (!ngSel.size) { $('ngErr').textContent = 'Kam se kam ek member jodo.'; return; }
+    $('ngCreate').disabled = true;
+    const { data, error } = await sb.rpc('create_group', { group_name: name, member_ids: [...ngSel.keys()] });
+    $('ngCreate').disabled = false;
+    if (error) { $('ngErr').textContent = error.message; return; }
+    if (socket) socket.emit('group:changed', { conversation_id: data });
+    await loadList();
+    const c = convs.find((x) => x.id === data);
+    if (c) openConv(c); else openList();
+  };
+
+  // -- Group info --
+  async function openGroupInfo() {
+    if (!openConvObj || !openConvObj.is_group) return;
+    show('groupinfo'); $('giErr').textContent = '';
+    await renderGroupInfo();
+  }
+  async function renderGroupInfo() {
+    const c = openConvObj; if (!c) return;
+    gMembers = await fetchGroupMembers(c.id);
+    const me = gMembers.find((m) => m.id === myId());
+    const admin = !!me && me.role === 'admin';
+    $('giTitle').textContent = c.title; $('giSub').textContent = gMembers.length + ' members';
+    $('giName').value = c.title;
+    $('giRename').classList.toggle('hidden', !admin); $('giAdd').classList.toggle('hidden', !admin);
+    $('giResults').innerHTML = ''; $('giSearch').value = '';
+    const box = $('giMembers'); box.innerHTML = '';
+    gMembers.sort((a, b) => (a.role === 'admin' ? 0 : 1) - (b.role === 'admin' ? 0 : 1) || a.name.localeCompare(b.name));
+    gMembers.forEach((m) => {
+      const row = userRow(m, null);
+      if (m.role === 'admin') { const t = document.createElement('span'); t.className = 'tagadmin'; t.textContent = 'Admin'; row.appendChild(t); }
+      if (m.id === myId()) row.querySelector('b').textContent = m.name + ' (You)';
+      else if (admin) { const b = document.createElement('button'); b.type = 'button'; b.className = 'red'; b.textContent = 'Hatao'; b.onclick = () => groupAction(() => sb.rpc('remove_group_member', { cid: c.id, target: m.id }), c.id); row.appendChild(b); }
+      box.appendChild(row);
+    });
+  }
+  async function groupAction(fn, cid) {
+    $('giErr').textContent = '';
+    const { error } = await fn();
+    if (error) { $('giErr').textContent = error.message; return false; }
+    if (socket) socket.emit('group:changed', { conversation_id: cid });
+    await loadList();
+    if (current === 'groupinfo') renderGroupInfo();
+    return true;
+  }
+  $('giBack').onclick = () => { show('conv'); updateConversationPresence(); };
+  $('giSave').onclick = async () => {
+    const c = openConvObj, nm = $('giName').value.trim().slice(0, 30); if (!c || !nm) return;
+    if (await groupAction(() => sb.rpc('rename_group', { cid: c.id, new_name: nm }), c.id)) { const cc = convs.find((x) => x.id === c.id); if (cc) openConvObj = cc; $('convName').textContent = nm; renderGroupInfo(); }
+  };
+  let giTimer = null;
+  $('giSearch').addEventListener('input', () => {
+    clearTimeout(giTimer);
+    giTimer = setTimeout(async () => {
+      const q = $('giSearch').value.trim().toLowerCase(), box = $('giResults'); box.innerHTML = '';
+      if (q.length < 2) return;
+      const list = await groupUserSearch(q, new Set(gMembers.map((m) => m.id)));
+      if (q !== $('giSearch').value.trim().toLowerCase()) return;
+      box.innerHTML = '';
+      if (!list.length) { const e = document.createElement('div'); e.className = 'empty'; e.textContent = 'Koi nahi mila.'; box.appendChild(e); return; }
+      list.forEach((u) => box.appendChild(userRow(u, 'Add', () => groupAction(() => sb.rpc('add_group_members', { cid: openConvObj.id, ids: [u.id] }), openConvObj.id))));
+    }, 250);
+  });
+  $('giLeave').onclick = async () => {
+    const c = openConvObj; if (!c) return;
+    if (!confirm('"' + c.title + '" group chhod dein?')) return;
+    const { error } = await sb.rpc('leave_group', { cid: c.id });
+    if (error) { $('giErr').textContent = error.message; return; }
+    if (socket) socket.emit('group:changed', { conversation_id: c.id });
+    openConvObj = null;
+    await loadList(); openList();
+  };
+  $('convName').parentElement.addEventListener('click', () => { if (openConvObj && openConvObj.is_group) openGroupInfo(); });
 
   // ---------------- Dusre ki profile dekhna ----------------
   async function showUserCard(uid) {
