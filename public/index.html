@@ -195,6 +195,11 @@
   .reward-card { display:block; width:calc(100% - 40px); margin:0 20px 10px; padding:12px 14px; border-radius:16px; border:0; text-align:left; background:linear-gradient(135deg,#3A2A8C,#6C47FF); color:#fff; font-family:inherit; cursor:pointer; }
   .reward-card .rc-top { display:flex; justify-content:space-between; font-size:14px; margin-bottom:8px; }
   .reward-card small { display:block; margin-top:6px; opacity:.85; font-size:11.5px; }
+  .rw-miles { display:flex; gap:8px; }
+  .rw-miles .ms { flex:1; text-align:center; padding:10px 4px; border-radius:16px; background:#171727; color:var(--muted); opacity:.55; }
+  .rw-miles .ms span { display:block; font-size:26px; filter:grayscale(1); }
+  .rw-miles .ms b { display:block; font-size:13px; color:#fff; } .rw-miles .ms small { font-size:11px; }
+  .rw-miles .ms.done { opacity:1; background:#2A2250; outline:1px solid #C8FF3D; } .rw-miles .ms.done span { filter:none; }
   .pbar { height:8px; border-radius:99px; background:rgba(255,255,255,.2); overflow:hidden; }
   .pbar i { display:block; height:100%; border-radius:99px; background:#C8FF3D; transition:width .6s; }
   .pbar.big { height:12px; margin-top:12px; background:#2A2A40; }
@@ -527,14 +532,16 @@
       <div class="rw-hero"><div class="rw-pts" id="rwPts">0</div><div class="rw-of">/ <span id="rwTarget">1000</span> points</div>
         <div class="pbar big"><i id="rwBar" style="width:0%"></i></div>
         <div class="rw-left" id="rwLeft"></div></div>
+      <div class="rw-miles" id="rwMiles"></div>
       <button class="main" id="rwBox" type="button">🎁 Surprise box</button>
       <button class="main" id="rwInvite" type="button" style="background:#C8FF3D;color:#0B0B12">📤 Dost ko invite karo</button>
       <button class="ghost" id="rwCopy" type="button">🔗 Link copy karo</button>
       <div class="rw-card"><b>Points kaise milte hain?</b>
         <ul>
-          <li>🔗 Tumhare link se app join karne par naye dost ko <b>10 points</b></li>
+          <li>🔗 Tumhare link se app join karne par naye dost ko <b>10 points</b>, aur tumhe <b>20 points</b></li>
           <li>💬 Chat me har <b>1 minute</b> (jisme tumne message bheja) par <b>1.5 points</b></li>
-          <li>🎁 <b>1000 points</b> hote hi surprise box khul jata hai!</li>
+          <li>🥉 <b>100</b> = Bronze badge &nbsp; 🥈 <b>400</b> = Silver badge</li>
+          <li>⭐ <b>1000</b> = Golden badge + surprise box 🎁</li>
         </ul>
         <small>Ek din me max 120 chat-minute (180 points) count hote hain. Fake accounts ya spam par points hat sakte hain.</small>
       </div>
@@ -1918,7 +1925,9 @@
 
   // ---- Golden badge ----
   let badgeMap = new Map(); // user_id -> 'owner' | 'founding'
-  const dn = (name, uid) => (uid && badgeMap.has(uid) ? name + ' ⭐' : name);
+  const BADGE_EMOJI = { owner: '⭐', founding: '⭐', silver: '🥈', bronze: '🥉' };
+  const BADGE_LABEL = { owner: '⭐ Founder of Baatein', founding: '⭐ Founding Member (Gold)', silver: '🥈 Silver Member', bronze: '🥉 Bronze Member' };
+  const dn = (name, uid) => (uid && badgeMap.has(uid) ? name + ' ' + (BADGE_EMOJI[badgeMap.get(uid)] || '') : name);
   async function loadBadges() {
     const { data, error } = await sb.from('user_badges').select('user_id,badge').limit(5000);
     if (error || !data) return;
@@ -1931,7 +1940,7 @@
   function paintMyBadge() {
     const el = $('pBadge'); if (!el) return;
     const b = profile && badgeMap.get(profile.id);
-    el.textContent = b === 'owner' ? '⭐ Founder of Baatein' : b === 'founding' ? '⭐ Founding Member' : '';
+    el.textContent = b ? BADGE_LABEL[b] || '' : '';
     el.classList.toggle('hidden', !b);
   }
 
@@ -1944,17 +1953,36 @@
     try { localStorage.removeItem(REF_KEY); } catch (_) {}
     if (data && data.ok) alert('🎉 Welcome! Invite link se join karne par tumhe ' + data.points + ' points mile.');
   }
+  const MILES = [
+    { p: 100, e: '🥉', n: 'Bronze', d: 'Bronze badge naam ke saath' },
+    { p: 400, e: '🥈', n: 'Silver', d: 'Silver badge naam ke saath' },
+    { p: 1000, e: '⭐', n: 'Gold', d: 'Golden badge + Surprise box' },
+  ];
   async function syncPoints() {
     const { data, error } = await sb.rpc('sync_points');
     if (error || !data) return;
-    pts = data; paintPoints();
+    pts = data; paintPoints(); milestoneCheck();
+    if (Number(pts.points) >= 100) loadBadges();
+  }
+  // Naya milestone paar kiya to badhai
+  function milestoneCheck() {
+    const me = myId(); if (!me) return;
+    const done = MILES.filter((m) => pts.points >= m.p).length, key = 'baatein-tier:' + me;
+    let prev = null; try { prev = localStorage.getItem(key); } catch (_) {}
+    try { localStorage.setItem(key, String(done)); } catch (_) {}
+    if (prev === null || Number(prev) >= done || !done) return;
+    const m = MILES[done - 1];
+    alert(m.e + ' Badhai ho! ' + pts.points + ' points - tumhe ' + m.n + ' milestone mil gaya!' + (m.p >= 1000 ? ' Surprise box kholo 🎁' : ' Naam ke saath ' + m.e + ' dikhega.'));
   }
   function paintPoints() {
     const pct = Math.min(100, (pts.points / pts.target) * 100);
     $('rewardCard').classList.remove('hidden');
     $('rcPts').textContent = '⭐ ' + fmtPts(pts.points) + ' / ' + pts.target;
     $('rcBar').style.width = pct + '%';
-    $('rcSub').textContent = pts.unlocked ? '🎉 Surprise box khul gaya! Tap karke dekho' : (fmtPts(pts.target - pts.points) + ' points aur → surprise box 🎁');
+    const nextM = MILES.find((m) => pts.points < m.p);
+    $('rcSub').textContent = pts.unlocked ? '🎉 Surprise box khul gaya! Tap karke dekho' : (fmtPts(nextM.p - pts.points) + ' points aur → ' + nextM.e + ' ' + nextM.n);
+    $('rwMiles').innerHTML = '';
+    MILES.forEach((m) => { const d = document.createElement('div'); d.className = 'ms' + (pts.points >= m.p ? ' done' : ''); d.innerHTML = '<span>' + m.e + '</span><b>' + m.n + '</b><small>' + m.p + ' pts</small>'; d.title = m.d; $('rwMiles').appendChild(d); });
     $('rwPts').textContent = fmtPts(pts.points); $('rwTarget').textContent = pts.target; $('rwBar').style.width = pct + '%';
     $('rwLeft').textContent = pts.unlocked ? '🎉 Mubarak ho! Surprise box unlock ho gaya.' : (fmtPts(pts.target - pts.points) + ' points aur chahiye');
     $('rwBox').textContent = pts.unlocked ? '🎁 Surprise box kholo!' : '🔒 Surprise box (' + fmtPts(pts.target - pts.points) + ' points aur)';
@@ -2173,7 +2201,7 @@
     avatarMap[uid] = data.avatar_path || null;
     paintAvatar(ph, data.name, uid);
     $('ucName').textContent = dn(data.name, uid);
-    const bt = badgeMap.get(uid); $('ucOn').textContent = bt === 'owner' ? '⭐ Founder of Baatein' : bt === 'founding' ? '⭐ Founding Member' : '';
+    const bt = badgeMap.get(uid); $('ucOn').textContent = bt ? BADGE_LABEL[bt] || '' : '';
     $('ucUser').textContent = data.username ? '@' + data.username : '';
     if (onlineUserIds.has(uid)) $('ucOn').textContent = ($('ucOn').textContent ? $('ucOn').textContent + ' · ' : '') + '🟢 online';
     $('ucBio').textContent = data.bio || 'Hey there! I\'m on Baatein.';
