@@ -143,6 +143,12 @@
   .stats-bar { display:flex; gap:8px; margin:0 20px 10px; }
   .stats-bar span { flex:1; text-align:center; padding:8px 4px; border-radius:12px; background:#1E1B33; color:var(--muted); font-size:11.5px; }
   .stats-bar b { display:block; color:#fff; font-size:16px; }
+  .st-opts { display:flex; flex-direction:column; gap:10px; padding:12px; border-radius:14px; background:#1E1B33; font-size:13px; color:var(--muted); }
+  .st-opts b { color:#fff; }
+  .st-opts input[type=range] { width:100%; accent-color:var(--violet); }
+  .st-opts .row { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+  .st-opts button { border:1px solid #3A3B4F; background:transparent; color:#fff; border-radius:10px; padding:8px 12px; font-family:inherit; font-size:12.5px; cursor:pointer; }
+  #vMute { background:rgba(0,0,0,.35); border:0; color:#fff; border-radius:50%; width:34px; height:34px; font-size:16px; cursor:pointer; }
   #storyRow { display: flex; gap: 14px; padding: 4px 20px 12px; overflow-x: auto; flex-shrink: 0; }
   .story { position: relative; flex-shrink: 0; width: 66px; }
   .story .sbtn { width: 100%; border: 0; background: transparent; color: var(--text); font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding: 0; }
@@ -170,7 +176,7 @@
   #vBars { display: flex; gap: 4px; margin-bottom: 12px; }
   #vBars .bar { flex: 1; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.35); overflow: hidden; }
   #vBars .bar.done { background: #fff; }
-  #vBars .bar.now::after { content: ''; display: block; height: 100%; background: #fff; animation: fill 5s linear forwards; }
+  #vBars .bar.now::after { content: ''; display: block; height: 100%; background: #fff; animation: fill var(--dur, 5s) linear forwards; }
   @keyframes fill { from { width: 0; } to { width: 100%; } }
   #vHead { display: flex; align-items: center; gap: 10px; }
   #vHead .avatar { width: 40px; height: 40px; font-size: 16px; }
@@ -459,10 +465,17 @@
     <div id="cColors"></div>
     <div class="pad">
       <input id="cCaption" class="hidden" type="text" maxlength="200" placeholder="Add a caption (optional)" aria-label="Caption">
+      <div class="st-opts">
+        <div class="row"><span>⏱ Status kitni der dikhe: <b id="cDurLabel">15 sec</b></span></div>
+        <input type="range" id="cDur" min="15" max="60" step="5" value="15" aria-label="Status duration in seconds">
+        <div class="row"><span id="cSongName">🎵 Gaana nahi lagaya</span><span><button type="button" id="cSongPick">Song add</button> <button type="button" id="cSongClear" class="hidden">Hatao</button></span></div>
+        <small>Apni phone me saved gaana (mp3/m4a, max 10 MB) chuno. Sirf wahi gaana lagao jo tumhara apna ho ya jiski permission ho.</small>
+      </div>
       <p class="error" id="cErr"></p>
       <button class="main" id="cPost" type="submit">Post status</button>
     </div>
     <input type="file" id="photoInput" accept="image/*" class="hidden">
+    <input type="file" id="songInput" accept="audio/*" class="hidden">
   </form>
 
   <!-- View status -->
@@ -477,6 +490,7 @@
       <div id="vHead">
         <div class="avatar" id="vAv">?</div>
         <div class="t"><b id="vName"></b><small id="vTime"></small></div>
+        <button id="vMute" type="button" class="hidden" aria-label="Mute song">🔊</button>
         <button id="vClose" type="button" aria-label="Close">&#10005;</button>
       </div>
     </div>
@@ -485,6 +499,7 @@
       <button id="vDel" type="button">Delete</button>
     </div>
     <div id="vPanel" class="hidden"></div>
+    <audio id="vAudio" loop preload="auto"></audio>
   </div>
 
   <!-- Profile -->
@@ -1097,7 +1112,7 @@
     if (!me) return;
     const [a, b] = await Promise.all([
       sb.from('statuses')
-        .select('id,user_id,kind,text,bg,image_path,created_at,profiles!statuses_user_id_fkey(name,username)')
+        .select('id,user_id,kind,text,bg,image_path,duration_sec,audio_path,audio_name,created_at,profiles!statuses_user_id_fkey(name,username)')
         .order('created_at', { ascending: true }).limit(300),
       sb.from('status_views').select('status_id').eq('viewer_id', me),
     ]);
@@ -1177,6 +1192,7 @@
     cKind = 'text'; cBg = BGS[0]; cFile = null;
     $('cText').value = ''; $('cCaption').value = ''; $('cErr').textContent = '';
     $('photoInput').value = '';
+    cAudio = null; $('songInput').value = ''; $('cDur').value = 15; $('cDurLabel').textContent = '15 sec'; paintSong();
     const colors = $('cColors');
     colors.innerHTML = '';
     BGS.forEach((c) => {
@@ -1188,6 +1204,20 @@
     });
     paintComposeUI();
   }
+  let cAudio = null;
+  function paintSong() {
+    $('cSongName').textContent = cAudio ? '🎵 ' + cAudio.name.slice(0, 28) : '🎵 Gaana nahi lagaya';
+    $('cSongClear').classList.toggle('hidden', !cAudio);
+  }
+  $('cDur').oninput = () => { $('cDurLabel').textContent = $('cDur').value + ' sec'; };
+  $('cSongPick').onclick = () => $('songInput').click();
+  $('cSongClear').onclick = () => { cAudio = null; $('songInput').value = ''; paintSong(); };
+  $('songInput').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    if (!/^audio\//.test(f.type)) { $('cErr').textContent = 'Sirf audio file (mp3/m4a) chuno.'; e.target.value = ''; return; }
+    if (f.size > 10 * 1024 * 1024) { $('cErr').textContent = 'Gaana 10 MB se chhota hona chahiye.'; e.target.value = ''; return; }
+    $('cErr').textContent = ''; cAudio = f; paintSong();
+  });
   $('cBack').onclick = () => openList();
   $('cTabText').onclick = () => { cKind = 'text'; paintComposeUI(); };
   $('cTabPhoto').onclick = () => { cKind = 'image'; paintComposeUI(); };
@@ -1232,6 +1262,14 @@
         const cap = $('cCaption').value.trim().slice(0, 200);
         row = { user_id: me, kind: 'image', text: cap || null, image_path: path };
       }
+      row.duration_sec = Math.min(60, Math.max(15, Number($('cDur').value) || 15));
+      if (cAudio) {
+        const ext = ((cAudio.name.split('.').pop() || 'mp3').replace(/[^a-z0-9]/gi, '').slice(0, 5)) || 'mp3';
+        const apath = me + '/' + crypto.randomUUID() + '.' + ext;
+        const upa = await sb.storage.from('status').upload(apath, cAudio, { contentType: cAudio.type });
+        if (upa.error) throw upa.error;
+        row.audio_path = apath; row.audio_name = cAudio.name.slice(0, 120);
+      }
       const ins = await sb.from('statuses').insert(row).select('id').single();
       if (ins.error) throw ins.error;
       await loadStatuses();
@@ -1252,8 +1290,22 @@
     renderStatus();
   }
 
+  const statusMs = (s) => (Math.min(60, Math.max(15, Number(s && s.duration_sec) || 15))) * 1000;
+  let vMuted = false;
+  function stopSong() { const a = $('vAudio'); a.pause(); a.removeAttribute('src'); a.load(); $('vMute').classList.add('hidden'); }
+  async function playSong(s) {
+    stopSong();
+    if (!s.audio_path) return;
+    const { data } = await sb.storage.from('status').createSignedUrl(s.audio_path, 3600);
+    if (!data || current !== 'viewer' || !vGroup || vGroup.items[vIdx] !== s) return;
+    const a = $('vAudio'); a.src = data.signedUrl; a.muted = vMuted; a.currentTime = 0;
+    $('vMute').textContent = vMuted ? '🔇' : '🔊'; $('vMute').classList.remove('hidden');
+    a.play().catch(() => {});
+  }
+  $('vMute').onclick = () => { vMuted = !vMuted; $('vAudio').muted = vMuted; $('vMute').textContent = vMuted ? '🔇' : '🔊'; };
   async function renderStatus() {
     clearTimeout(vTimer);
+    stopSong();
     $('vPanel').classList.add('hidden');
     const s = vGroup && vGroup.items[vIdx];
     if (!s) { closeViewer(); return; }
@@ -1264,6 +1316,7 @@
     vGroup.items.forEach((_, i) => {
       const d = document.createElement('div');
       d.className = 'bar' + (i < vIdx ? ' done' : i === vIdx ? ' now' : '');
+      if (i === vIdx) d.style.setProperty('--dur', statusMs(vGroup.items[i]) / 1000 + 's');
       bars.appendChild(d);
     });
     paintAvatar($('vAv'), vGroup.name);
@@ -1303,7 +1356,8 @@
     }
 
     clearTimeout(vTimer);
-    vTimer = setTimeout(nextStatus, 5000);
+    vTimer = setTimeout(nextStatus, statusMs(s));
+    playSong(s);
   }
 
   function nextStatus() {
@@ -1316,7 +1370,7 @@
     renderStatus();
   }
   function closeViewer() {
-    clearTimeout(vTimer);
+    clearTimeout(vTimer); stopSong();
     vGroup = null;
     openList();
   }
@@ -1328,7 +1382,7 @@
   $('vClose').onclick = closeViewer;
 
   $('vSeen').onclick = () => {
-    clearTimeout(vTimer);
+    clearTimeout(vTimer); $('vAudio').pause();
     const s = vGroup.items[vIdx];
     const p = $('vPanel');
     p.innerHTML = '';
@@ -1348,7 +1402,7 @@
     });
     const c = document.createElement('button');
     c.type = 'button'; c.className = 'ghost'; c.style.width = '100%'; c.style.marginTop = '12px'; c.textContent = 'Close';
-    c.onclick = () => { p.classList.add('hidden'); vTimer = setTimeout(nextStatus, 5000); };
+    c.onclick = () => { p.classList.add('hidden'); vTimer = setTimeout(nextStatus, statusMs(s)); if (s.audio_path) $('vAudio').play().catch(() => {}); };
     p.appendChild(c);
     p.classList.remove('hidden');
   };
@@ -1359,6 +1413,7 @@
     clearTimeout(vTimer);
     const { error } = await sb.from('statuses').delete().eq('id', s.id);
     if (error) { alert(error.message); return; }
+    if (s.audio_path) sb.storage.from('status').remove([s.audio_path]).then(() => {}, () => {});
     if (s.image_path) sb.storage.from('status').remove([s.image_path]).then(() => {}, () => {});
     vGroup.items.splice(vIdx, 1);
     if (!vGroup.items.length) {
