@@ -226,6 +226,31 @@
   #chList .gm .cb { font-size:16px; padding:6px 9px; }
   .madeby { text-align:center; color:var(--muted); font-size:12px; padding:14px 16px 6px; }
   .madeby b { color:#fff; }
+  /* ---- List screen: compact layout ---- */
+  .notif-banner { margin:2px 16px 8px; padding:8px 8px 8px 12px; gap:8px; border-radius:14px; }
+  .notif-banner b { display:inline; font-size:13px; margin:0; }
+  .notif-banner span { display:none; }
+  .notif-banner.long span { display:block; margin-top:2px; font-size:11.5px; }
+  .notif-banner button { padding:8px 12px; font-size:12.5px; }
+  .notif-banner #notifX { background:transparent; color:var(--muted); padding:6px 8px; font-size:14px; }
+  #list header { padding:14px 20px 6px; }
+  #list header .brand { display:flex; align-items:center; gap:10px; }
+  .bt { display:flex; flex-direction:column; line-height:1.05; } .bt .by { font-size:11px; color:var(--muted); margin-top:2px; }
+  #storyRow { padding:2px 16px 8px; }
+  .quality-tools { gap:6px; padding-bottom:6px; }
+  .srow { display:flex; gap:8px; } .srow input { flex:1; height:40px; }
+  #selToggle { width:42px; height:40px; padding:0; font-size:17px; border-radius:12px; }
+  .quality-tabs button { padding:6px 4px; font-size:12px; }
+  .fab { bottom:78px; }
+  #chatList { padding-bottom:84px; }
+  #bottomNav { display:flex; flex-shrink:0; padding:6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); background:rgba(14,14,24,.97); border-top:1px solid #23233A; }
+  #bottomNav.hidden { display:none !important; }
+  #bottomNav button { flex:1; border:0; background:transparent; color:var(--muted); font-family:inherit; display:flex; flex-direction:column; align-items:center; gap:2px; padding:4px 0; cursor:pointer; }
+  #bottomNav button span { font-size:21px; position:relative; line-height:1.1; filter:grayscale(.7); }
+  #bottomNav button small { font-size:11px; font-weight:600; }
+  #bottomNav button.on { color:#C8FF3D; } #bottomNav button.on span { filter:none; }
+  .navchip { position:absolute; top:-5px; left:15px; font-style:normal; font-size:9.5px; font-weight:800; background:#C8FF3D; color:#0B0B12; border-radius:99px; padding:1px 5px; font-family:inherit; }
+  .navchip:empty { display:none; }
   #storyRow { display: flex; gap: 14px; padding: 4px 20px 12px; overflow-x: auto; flex-shrink: 0; }
   .story { position: relative; flex-shrink: 0; width: 66px; }
   .story .sbtn { width: 100%; border: 0; background: transparent; color: var(--text); font-family: inherit; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; padding: 0; }
@@ -467,32 +492,26 @@
         <div class="logo" style="width:36px;height:36px;border-radius:12px">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="#0B0B12"><path d="M4 5.5A3.5 3.5 0 0 1 7.5 2h9A3.5 3.5 0 0 1 20 5.5v7a3.5 3.5 0 0 1-3.5 3.5H11l-4.6 4.2c-.7.6-1.4.2-1.4-.7V16A3.5 3.5 0 0 1 4 12.5z"/></svg>
         </div>
-        <b>Baatein</b>
+        <div class="bt"><b>Baatein</b><small class="by">by Prayag ❤️</small></div>
       </div>
       <button class="avatar" id="meBtn" aria-label="My profile">?</button>
     </header>
-    <div id="notifBanner" class="notif-banner hidden"><div><b>🔔 Notifications on karo</b><span id="notifHint">App band ho tab bhi message aur call ki ring aayegi.</span></div><button id="notifBtn" type="button">Enable</button></div>
-    <div id="statsBar" class="stats-bar hidden"><span><b id="stOnline">0</b>🟢 online</span><span><b id="stInstalled">0</b>📲 installed</span><span><b id="stMembers">0</b>👥 members</span></div>
-    <button type="button" id="rewardCard" class="reward-card hidden">
-      <div class="rc-top"><b>🎁 Invite &amp; Earn</b><span id="rcPts">⭐ 0 / 1000</span></div>
-      <div class="pbar"><i id="rcBar" style="width:0%"></i></div>
-      <small id="rcSub">Dost ko bulao, chat karo, points kamao</small>
-    </button>
+    <div id="notifBanner" class="notif-banner hidden"><div><b>🔔 Notifications on karo</b><span id="notifHint">App band ho tab bhi message aur call ki ring aayegi.</span></div><button id="notifBtn" type="button">Enable</button><button id="notifX" type="button" aria-label="Baad me">✕</button></div>
     <div id="selBar" class="sel-bar hidden"><span id="selCount">0 selected</span><button type="button" id="selAll">All</button><button type="button" class="danger" id="selDel">🗑 Delete</button><button type="button" id="selCancel">Cancel</button></div>
     <div id="storyRow"></div>
     <div class="quality-tools">
-      <input id="chatSearch" type="search" placeholder="Search chats and messages…" aria-label="Search chats and messages">
+      <div class="srow">
+        <input id="chatSearch" type="search" placeholder="Search chats and messages…" aria-label="Search chats and messages">
+        <button type="button" id="selToggle" title="Kai chats chuno" aria-label="Select chats">☑</button>
+      </div>
       <div class="quality-tabs">
-        <button type="button" id="selToggle">☑ Select</button>
-        <button type="button" class="on" data-chat-view="all">All chats</button>
+        <button type="button" class="on" data-chat-view="all">All</button>
         <button type="button" data-chat-view="pinned">📌 Pinned</button>
         <button type="button" data-chat-view="archived">🗂️ Archived</button>
-        <button type="button" id="callHistBtn">📞 Calls</button>
       </div>
       <div id="qualitySearchResults" class="hidden" style="max-height:170px;overflow:auto"></div>
     </div>
     <div id="chatList"></div>
-    <div class="madeby">Baatein ko <b>Prayag</b> ne banaya hai ❤️</div>
     <button class="fab" id="newBtn" type="button">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0B0B12" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
       New chat
@@ -544,6 +563,9 @@
           <li>⭐ <b>1000</b> = Golden badge + surprise box 🎁</li>
         </ul>
         <small>Ek din me max 120 chat-minute (180 points) count hote hain. Fake accounts ya spam par points hat sakte hain.</small>
+      </div>
+      <div class="rw-card"><b>Baatein community</b>
+    <div id="statsBar" class="stats-bar hidden" style="margin:10px 0 0"><span><b id="stOnline">0</b>🟢 online</span><span><b id="stInstalled">0</b>📲 installed</span><span><b id="stMembers">0</b>👥 members</span></div>
       </div>
       <div class="rw-card"><b>Tumhare dost</b><div id="rwInvited">0 dost tumhare link se aaye</div></div>
     </div>
@@ -692,8 +714,16 @@
     <p class="error" id="profError"></p>
     <button class="main" id="saveBtn" type="submit">Save</button>
     <div class="madeby">Baatein · banane wala: <b>Prayag</b> (Udaipur, India)<br>Feedback ya idea ho to unhe batao!</div>
+    <button class="ghost hidden" id="pNotifBtn" type="button">🔔 Notifications on karo</button>
     <button class="ghost" id="logoutBtn" type="button">Log out</button>
   </form>
+
+  <nav id="bottomNav" class="hidden" aria-label="Main">
+    <button type="button" data-go="chats" class="on"><span>💬</span><small>Chats</small></button>
+    <button type="button" data-go="calls"><span>📞</span><small>Calls</small></button>
+    <button type="button" data-go="rewards"><span>🎁<i class="navchip" id="navPts"></i></span><small>Rewards</small></button>
+    <button type="button" data-go="me"><span>👤</span><small>Profile</small></button>
+  </nav>
 
 </div>
 
@@ -730,7 +760,15 @@
   const $ = (id) => document.getElementById(id);
   const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'callhist', 'rewards', 'profile', 'compose', 'viewer'];
   let current = 'loading';
-  function show(name) { current = name; screens.forEach((s) => $(s).classList.toggle('hidden', s !== name)); }
+  function show(name) {
+    current = name; screens.forEach((s) => $(s).classList.toggle('hidden', s !== name));
+    const nav = $('bottomNav');
+    if (nav) {
+      nav.classList.toggle('hidden', !['list', 'callhist', 'rewards'].includes(name));
+      const which = { list: 'chats', callhist: 'calls', rewards: 'rewards' }[name];
+      nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.go === which));
+    }
+  }
 
   let session = null;   // login session
   let profile = null;   // meri profile
@@ -1775,7 +1813,7 @@
 
   async function logout() {
     if (socket) { socket.disconnect(); socket = null; }
-    stopRing(); clearInterval(statsTimer); clearInterval(ptsTimer); $('rewardCard').classList.add('hidden'); paintRefBanner();
+    stopRing(); clearInterval(statsTimer); clearInterval(ptsTimer); paintRefBanner();
     // Is phone par is account ki notifications band
     try {
       if (pushSupported()) {
@@ -1977,11 +2015,7 @@
   }
   function paintPoints() {
     const pct = Math.min(100, (pts.points / pts.target) * 100);
-    $('rewardCard').classList.remove('hidden');
-    $('rcPts').textContent = '⭐ ' + fmtPts(pts.points) + ' / ' + pts.target;
-    $('rcBar').style.width = pct + '%';
-    const nextM = MILES.find((m) => pts.points < m.p);
-    $('rcSub').textContent = pts.unlocked ? '🎉 Surprise box khul gaya! Tap karke dekho' : (fmtPts(nextM.p - pts.points) + ' points aur → ' + nextM.e + ' ' + nextM.n);
+    $('navPts').textContent = Math.floor(pts.points) > 0 ? String(Math.floor(pts.points)) : '';
     $('rwMiles').innerHTML = '';
     MILES.forEach((m) => { const d = document.createElement('div'); d.className = 'ms' + (pts.points >= m.p ? ' done' : ''); d.innerHTML = '<span>' + m.e + '</span><b>' + m.n + '</b><small>' + m.p + ' pts</small>'; d.title = m.d; $('rwMiles').appendChild(d); });
     $('rwPts').textContent = fmtPts(pts.points); $('rwTarget').textContent = pts.target; $('rwBar').style.width = pct + '%';
@@ -2013,7 +2047,6 @@
     syncPoints();
   }
   function openRewards() { show('rewards'); syncPoints(); }
-  $('rewardCard').onclick = openRewards;
   $('rwBack').onclick = () => openList();
   $('rwInvite').onclick = shareInvite;
   $('rwCopy').onclick = copyInvite;
@@ -2057,7 +2090,11 @@
       box.appendChild(row);
     });
   }
-  $('callHistBtn').onclick = openCallHistory;
+  document.querySelectorAll('#bottomNav button').forEach((b) => b.addEventListener('click', () => {
+    const g = b.dataset.go;
+    if (g === 'chats') openList(); else if (g === 'calls') openCallHistory(); else if (g === 'rewards') openRewards();
+    else if (g === 'me') openProfile(false, profile);
+  }));
   $('chBack').onclick = () => openList();
 
   // ---------------- Group chat ----------------
@@ -2283,13 +2320,17 @@
   async function updateNotifBanner() {
     const b = $('notifBanner'), hint = $('notifHint'), btn = $('notifBtn'); if (!b) return;
     const hide = () => b.classList.add('hidden');
-    const showB = (text, withBtn) => { hint.textContent = text; btn.style.display = withBtn ? '' : 'none'; b.classList.remove('hidden'); };
+    let dismissed = false; try { dismissed = Date.now() - Number(localStorage.getItem('baatein-notif-x') || 0) < 3 * 86400000; } catch (_) {}
+    const showB = (text, withBtn) => { if (dismissed) { hide(); return; } hint.textContent = text; btn.style.display = withBtn ? '' : 'none'; b.classList.toggle('long', !withBtn); b.classList.remove('hidden'); };
     if (!pushSupported()) { if (isIOS && !isStandalone) showB('iPhone par: Safari me Share → "Add to Home Screen" karo, phir app wahin se kholo. Tab notifications on ho payengi.', false); else hide(); return; }
     const key = await getPushKey(); if (!key) { hide(); return; }
     if (Notification.permission === 'granted') hide();
     else if (Notification.permission === 'denied') showB('Notifications block hain. Phone/browser Settings → Site settings → Notifications me Baatein ko Allow karo.', false);
     else showB('App band ho tab bhi message aur call ki ring aayegi.', true);
+    const pb = $('pNotifBtn'); if (pb) pb.classList.toggle('hidden', Notification.permission === 'granted');
   }
+  $('notifX').onclick = () => { try { localStorage.setItem('baatein-notif-x', String(Date.now())); } catch (_) {} $('notifBanner').classList.add('hidden'); };
+  $('pNotifBtn').onclick = async () => { getAudio(); await registerPush(true); updateNotifBanner(); };
   $('notifBtn').onclick = async () => { getAudio(); await registerPush(true); updateNotifBanner(); };
 
   // Notification dabane par seedha wahi chat kholo
