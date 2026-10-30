@@ -508,7 +508,12 @@
       <button class="back" id="backBtn" type="button" aria-label="Back">&#8592;</button>
       <div class="title"><b id="profileTitle">Your profile</b></div>
     </div>
-    <div class="avatar bigavatar" id="bigAvatar">?</div>
+    <div class="avatar bigavatar" id="bigAvatar" role="button" tabindex="0" aria-label="Change profile photo" style="cursor:pointer">?</div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button type="button" class="ghost" id="pPhotoPick" style="padding:8px 14px">📷 Photo badlo</button>
+      <button type="button" class="ghost hidden" id="pPhotoDel" style="padding:8px 14px">Hatao</button>
+    </div>
+    <input type="file" id="pPhotoInput" accept="image/*" class="hidden">
     <label for="pName">Name</label>
     <input id="pName" type="text" maxlength="20" placeholder="Your name" required>
     <label for="pUser">Username</label>
@@ -575,7 +580,11 @@
     for (const ch of String(str)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
     return COLORS[h % COLORS.length];
   }
-  function paintAvatar(el, name) {
+  const avatarMap = {}; // user_id -> photo path
+  function avatarUrl(uid) { const p = uid && avatarMap[uid]; return p ? sb.storage.from('avatars').getPublicUrl(p).data.publicUrl : null; }
+  function paintAvatar(el, name, uid) {
+    const url = avatarUrl(uid);
+    if (url) { el.textContent = ''; el.style.background = '#222 center/cover no-repeat url("' + url + '")'; return; }
     el.textContent = (name || '?').trim().charAt(0).toUpperCase() || '?';
     el.style.background = colorFor(name);
   }
@@ -655,12 +664,13 @@
     const { data, error } = await sb.from('profiles').select('*').eq('id', myId()).maybeSingle();
     if (error) { $('authError').textContent = error.message; show('auth'); return; }
     profile = data;
+    if (profile) avatarMap[profile.id] = profile.avatar_path || null;
     if (!profile || !profile.username) { openProfile(true, profile); return; }
     startApp();
   }
 
   function startApp() {
-    paintAvatar($('meBtn'), profile.name);
+    paintAvatar($('meBtn'), profile.name, myId());
     connectSocket();
     openList();
     registerPush(false).then(updateNotifBanner, updateNotifBanner);
@@ -764,7 +774,7 @@
     let others = [];
     if (ids.length) {
       const res = await sb.from('conversation_members')
-        .select('conversation_id, profiles(id,name,username)')
+        .select('conversation_id, profiles(id,name,username,avatar_path)')
         .in('conversation_id', ids)
         .neq('user_id', me);
       others = res.data || [];
@@ -772,6 +782,7 @@
     convs = mine.map((r) => {
       const o = others.find((x) => x.conversation_id === r.conversation_id);
       const p = (o && o.profiles) || {};
+      if (p.id) avatarMap[p.id] = p.avatar_path || null;
       return {
         id: r.conversation_id,
         is_group: r.conversations.is_group,
@@ -825,7 +836,7 @@
       const row = document.createElement('button');
       row.className = 'row' + (c.unread ? ' unread' : '');
       row.type = 'button';
-      const av = document.createElement('div'); av.className = 'avatar'; paintAvatar(av, c.title);
+      const av = document.createElement('div'); av.className = 'avatar'; paintAvatar(av, c.title, c.is_group ? null : c.other_user_id);
       const mid = document.createElement('div'); mid.className = 'mid';
       const top = document.createElement('div'); top.className = 'top';
       const nm = document.createElement('b'); nm.textContent = c.title;
@@ -911,7 +922,7 @@
       const pr = await sb.from('conversation_members').select('last_read_at').eq('conversation_id', c.id).neq('user_id', myId()).maybeSingle();
       if (pr.data) peerLastReadAt = pr.data.last_read_at;
     }
-    paintAvatar($('convAvatar'), c.title);
+    paintAvatar($('convAvatar'), c.title, c.is_group ? null : c.other_user_id);
     $('messages').innerHTML = '';
     $('typing').textContent = '';
     const { data } = await sb.from('chat_messages')
@@ -1059,7 +1070,7 @@
     box.innerHTML = '';
     if (q.length < 2) return;
     const { data, error } = await sb.from('profiles')
-      .select('id,name,username,bio')
+      .select('id,name,username,bio,avatar_path')
       .ilike('username', q + '%')
       .neq('id', myId())
       .limit(10);
@@ -1075,7 +1086,7 @@
     data.forEach((u) => {
       const row = document.createElement('button');
       row.className = 'row'; row.type = 'button';
-      const av = document.createElement('div'); av.className = 'avatar'; paintAvatar(av, u.name);
+      const av = document.createElement('div'); av.className = 'avatar'; avatarMap[u.id] = u.avatar_path || null; paintAvatar(av, u.name, u.id);
       const mid = document.createElement('div'); mid.className = 'mid';
       const nm = document.createElement('b'); nm.textContent = u.name;
       const un = document.createElement('div'); un.className = 'uname'; un.textContent = '@' + u.username;
@@ -1112,7 +1123,7 @@
     if (!me) return;
     const [a, b] = await Promise.all([
       sb.from('statuses')
-        .select('id,user_id,kind,text,bg,image_path,duration_sec,audio_path,audio_name,created_at,profiles!statuses_user_id_fkey(name,username)')
+        .select('id,user_id,kind,text,bg,image_path,duration_sec,audio_path,audio_name,created_at,profiles!statuses_user_id_fkey(name,username,avatar_path)')
         .order('created_at', { ascending: true }).limit(300),
       sb.from('status_views').select('status_id').eq('viewer_id', me),
     ]);
@@ -1120,6 +1131,7 @@
     seenSet = new Set((b.data || []).map((v) => v.status_id));
     const by = new Map();
     (a.data || []).forEach((r) => {
+      if (r.profiles) avatarMap[r.user_id] = r.profiles.avatar_path || null;
       if (!by.has(r.user_id)) by.set(r.user_id, { uid: r.user_id, name: (r.profiles && r.profiles.name) || '?', items: [] });
       by.get(r.user_id).items.push(r);
     });
@@ -1129,13 +1141,13 @@
 
   const hasUnseen = (g) => g.items.some((i) => !seenSet.has(i.id));
 
-  function storyEl(label, avatarName, ring, onOpen, withPlus) {
+  function storyEl(label, avatarName, ring, onOpen, withPlus, uid) {
     const wrap = document.createElement('div');
     wrap.className = 'story';
     const btn = document.createElement('button');
     btn.type = 'button'; btn.className = 'sbtn';
     const r = document.createElement('div'); r.className = 'ring'; r.style.background = ring;
-    const av = document.createElement('div'); av.className = 'avatar'; paintAvatar(av, avatarName);
+    const av = document.createElement('div'); av.className = 'avatar'; paintAvatar(av, avatarName, uid);
     r.appendChild(av);
     const l = document.createElement('span'); l.className = 'lbl'; l.textContent = label;
     btn.appendChild(r); btn.appendChild(l);
@@ -1157,12 +1169,12 @@
     row.innerHTML = '';
     const me = myId();
     const mine = statusGroups.find((g) => g.uid === me);
-    row.appendChild(storyEl('Your vibe', profile.name, mine ? '#6C47FF' : '#3A3B4F', mine ? () => openViewer(mine) : openCompose, true));
+    row.appendChild(storyEl('Your vibe', profile.name, mine ? '#6C47FF' : '#3A3B4F', mine ? () => openViewer(mine) : openCompose, true, myId()));
     statusGroups
       .filter((g) => g.uid !== me)
       .sort((x, y) => (Number(hasUnseen(y)) - Number(hasUnseen(x))) ||
         (new Date(y.items[y.items.length - 1].created_at) - new Date(x.items[x.items.length - 1].created_at)))
-      .forEach((g) => row.appendChild(storyEl(g.name.split(' ')[0], g.name, hasUnseen(g) ? GRAD : '#3A3B4F', () => openViewer(g), false)));
+      .forEach((g) => row.appendChild(storyEl(g.name.split(' ')[0], g.name, hasUnseen(g) ? GRAD : '#3A3B4F', () => openViewer(g), false, g.uid)));
     if (statusErr) {
       const e = document.createElement('div');
       e.className = 'error';
@@ -1319,7 +1331,7 @@
       if (i === vIdx) d.style.setProperty('--dur', statusMs(vGroup.items[i]) / 1000 + 's');
       bars.appendChild(d);
     });
-    paintAvatar($('vAv'), vGroup.name);
+    paintAvatar($('vAv'), vGroup.name, vGroup.uid);
     $('vName').textContent = mine ? 'Your status' : vGroup.name;
     $('vTime').textContent = fmtTime(s.created_at);
 
@@ -1434,9 +1446,44 @@
     $('pUser').value = p ? (p.username || '') : '';
     $('pBio').value = p ? (p.bio || '') : '';
     $('profError').textContent = msg || '';
-    paintAvatar($('bigAvatar'), $('pName').value);
+    pPhoto = { blob: null, remove: false };
+    $('pPhotoInput').value = '';
+    paintProfilePhoto();
   }
-  $('pName').addEventListener('input', () => paintAvatar($('bigAvatar'), $('pName').value));
+  $('pName').addEventListener('input', () => { if (!pPhoto.blob && (pPhoto.remove || !(profile && avatarMap[profile.id]))) paintAvatar($('bigAvatar'), $('pName').value); });
+
+  // ---- Profile photo ----
+  let pPhoto = { blob: null, remove: false };
+  function paintProfilePhoto() {
+    const big = $('bigAvatar');
+    const hasSaved = !!(profile && avatarMap[profile.id]) && !pPhoto.remove;
+    if (pPhoto.blob) { big.textContent = ''; big.style.background = '#222 center/cover no-repeat url("' + (pPhoto.url || '') + '")'; }
+    else if (hasSaved) paintAvatar(big, $('pName').value, profile.id);
+    else paintAvatar(big, $('pName').value);
+    $('pPhotoDel').classList.toggle('hidden', !pPhoto.blob && !hasSaved);
+  }
+  // Photo ko 512x512 square me kaato aur chhota karo
+  async function squarePhoto(file) {
+    const bmp = await createImageBitmap(file);
+    const side = Math.min(bmp.width, bmp.height), size = Math.min(512, side);
+    const c = document.createElement('canvas'); c.width = size; c.height = size;
+    c.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, size, size);
+    return await new Promise((res) => c.toBlob(res, 'image/jpeg', 0.85));
+  }
+  $('bigAvatar').onclick = () => $('pPhotoInput').click();
+  $('pPhotoPick').onclick = () => $('pPhotoInput').click();
+  $('pPhotoInput').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    if (!/^image\//.test(f.type)) { $('profError').textContent = 'Sirf photo chuno.'; return; }
+    try {
+      const blob = await squarePhoto(f);
+      if (pPhoto.url) URL.revokeObjectURL(pPhoto.url);
+      pPhoto = { blob, remove: false, url: URL.createObjectURL(blob) };
+      $('profError').textContent = '';
+      paintProfilePhoto();
+    } catch (_) { $('profError').textContent = 'Ye photo khul nahi payi, dusri try karo.'; }
+  });
+  $('pPhotoDel').onclick = () => { pPhoto = { blob: null, remove: true }; paintProfilePhoto(); };
   $('backBtn').onclick = () => openList();
 
   $('profile').addEventListener('submit', async (e) => {
@@ -1449,11 +1496,21 @@
     try {
       if (!name) throw new Error('Naam zaroori hai.');
       if (!USERNAME_RE.test(username)) throw new Error('Username 3-20 characters ka ho: small letters, numbers, _ ya .');
+      const fields = { id: myId(), name, username, bio };
+      const oldPath = avatarMap[myId()] || null;
+      if (pPhoto.blob) {
+        const np = myId() + '/' + crypto.randomUUID() + '.jpg';
+        const up = await sb.storage.from('avatars').upload(np, pPhoto.blob, { contentType: 'image/jpeg' });
+        if (up.error) throw up.error;
+        fields.avatar_path = np;
+      } else if (pPhoto.remove) fields.avatar_path = null;
       const { data, error } = await sb.from('profiles')
-        .upsert({ id: myId(), name, username, bio })
+        .upsert(fields)
         .select().single();
       if (error) throw error;
       profile = data;
+      avatarMap[profile.id] = profile.avatar_path || null;
+      if (oldPath && oldPath !== profile.avatar_path) sb.storage.from('avatars').remove([oldPath]).then(() => {}, () => {});
       startApp(); // naye naam ke saath dobara connect
     } catch (err) {
       $('profError').textContent = err.code === '23505' ? 'Ye username pehle se kisi ka hai, dusra chuno.' : (err.message || String(err));
