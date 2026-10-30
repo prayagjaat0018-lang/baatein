@@ -210,13 +210,17 @@ io.on('connection', async (socket) => {
       // Is chat ke sabhi members ke sockets ko kamre me daalo (naye chat ke liye zaroori)
       const mr = await sb('/rest/v1/conversation_members?conversation_id=eq.' + cid + '&select=user_id', t);
       if (mr.ok) {
-        for (const m of await mr.json()) io.in('user:' + m.user_id).socketsJoin('conv:' + cid);
+        const memberIds = new Set();
+        for (const m of await mr.json()) { memberIds.add(m.user_id); io.in('user:' + m.user_id).socketsJoin('conv:' + cid); }
+        // Jo ab member nahi (group se hata diye gaye) unke sockets ko is chat ke kamre se nikalo
+        try { for (const sk of await io.in('conv:' + cid).fetchSockets()) { if (!memberIds.has(sk.data.uid)) sk.leave('conv:' + cid); } } catch (_) {}
       }
 
       io.to('conv:' + cid).emit('message', {
         id: row.id,
         conversation_id: cid,
         sender_id: uid,
+        sender_name: name,
         text: row.text,
         attachment_path: row.attachment_path || null, attachment_name: row.attachment_name || null, attachment_mime: row.attachment_mime || null, attachment_size: row.attachment_size || null,
         reply_to: row.reply_to || null,
@@ -226,13 +230,36 @@ io.on('connection', async (socket) => {
       });
 
       // App band ho tab bhi dusre members ko notification
+      let pushTitle = name, pushPrefix = '';
+      try {
+        const cr = await sb('/rest/v1/conversations?id=eq.' + cid + '&select=is_group,name', t);
+        if (cr.ok) { const cv = (await cr.json())[0]; if (cv && cv.is_group) { pushTitle = cv.name || 'Group'; pushPrefix = name + ': '; } }
+      } catch (_) {}
       pushToOthers(cid, t, {
         type: 'message', conversation_id: cid, message_id: row.id,
-        title: name, body: previewOf(row.text, row.attachment_mime, row.attachment_name),
+        title: pushTitle, body: pushPrefix + previewOf(row.text, row.attachment_mime, row.attachment_name),
       }, false);
     } catch (e) {
       socket.emit('send_failed', { conversation_id: cid });
     }
+  });
+
+  // Group me kuch badla (naya group, member juda/hata, naam badla): sabko batao aur kamre theek karo
+  socket.on('group:changed', async (payload = {}) => {
+    const cid = String(payload.conversation_id || '');
+    if (!UUID.test(cid)) return;
+    try {
+      const ids = await getConversationMemberIds(cid, token);
+      if (!ids || !ids.includes(uid)) {
+        // Main ab member nahi (group chhod diya) - bas apne sockets nikalo
+        io.in('user:' + uid).socketsLeave('conv:' + cid);
+        return;
+      }
+      for (const id of ids) io.in('user:' + id).socketsJoin('conv:' + cid);
+      io.to('conv:' + cid).emit('group:updated', { conversation_id: cid });
+      const set = new Set(ids);
+      for (const sk of await io.in('conv:' + cid).fetchSockets()) { if (!set.has(sk.data.uid)) sk.leave('conv:' + cid); }
+    } catch (_) {}
   });
 
   // Message edit/delete: server enforces sender ownership; database RLS is a second guard.
