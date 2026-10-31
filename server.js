@@ -129,6 +129,30 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.static('public'));
+// Gaana dhundna (iTunes Search - 30 second preview). Browser seedha iTunes se baat na kare isliye server beech me.
+const songCache = new Map();
+app.get('/api/songs', async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 80);
+  if (q.length < 2) return res.json({ results: [] });
+  const key = q.toLowerCase();
+  const hit = songCache.get(key);
+  if (hit && Date.now() - hit.t < 10 * 60 * 1000) return res.json({ results: hit.v });
+  try {
+    const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 6000);
+    const r = await fetch('https://itunes.apple.com/search?media=music&entity=song&country=IN&limit=15&term=' + encodeURIComponent(q), { signal: ctl.signal });
+    clearTimeout(tm);
+    if (!r.ok) return res.status(502).json({ error: 'search_failed' });
+    const j = await r.json();
+    const ok = (u) => typeof u === 'string' && /^https:\/\/[a-z0-9.-]+\.mzstatic\.com\//i.test(u);
+    const v = (j.results || []).filter((x) => ok(x.previewUrl)).map((x) => ({
+      url: x.previewUrl, title: String(x.trackName || '').slice(0, 80), artist: String(x.artistName || '').slice(0, 80),
+      art: ok(x.artworkUrl100) ? x.artworkUrl100 : null,
+    }));
+    if (songCache.size > 200) songCache.clear();
+    songCache.set(key, { t: Date.now(), v });
+    res.json({ results: v });
+  } catch (e) { res.status(502).json({ error: 'search_failed' }); }
+});
 
 // Browser ko batao ki push ke liye public key kya hai
 app.get('/api/push-key', (req, res) => {
