@@ -843,11 +843,26 @@
     <button class="setrow" id="goPrivacy" type="button"><span>🔒 Privacy<br><small>Online status, photo, bio kise dikhe</small></span><span>›</span></button>
     <button class="setrow" id="goBlocked" type="button"><span>🚫 Blocked users<br><small>Jinhe block kiya unki list</small></span><span>›</span></button>
     <button class="setrow" id="goBeast" type="button"><span>🐺 The Beast<br><small id="beastSub">...</small></span><span id="beastSw">POSTER</span></button>
+    <button class="setrow" id="goSafety" type="button"><span>🛡️ Privacy &amp; Safety<br><small>Hum kya karte hain, kya nahi</small></span><span>›</span></button>
     <button class="setrow" id="goAccount" type="button"><span>⚙️ Account<br><small>Password, sab jagah se logout, delete</small></span><span>›</span></button>
     <div class="madeby">Baatein · banane wala: <b>Prayag</b> (Udaipur, India)<br>Feedback ya idea ho to unhe batao!</div>
     <button class="ghost hidden" id="pNotifBtn" type="button">🔔 Notifications on karo</button>
     <button class="ghost" id="logoutBtn" type="button">Log out</button>
   </form>
+
+  <div id="safety" class="hidden setpage">
+    <div class="topbar"><button class="back" data-setback type="button" aria-label="Back">&#8592;</button><div class="title"><b>Privacy &amp; Safety</b></div></div>
+    <div class="pad">
+      <div class="setbox"><b>✅ Ye hum karte hain</b>
+        <p class="hint" style="margin:0">• Sab kuch HTTPS (secure connection) se jaata hai.<br>• Chat sirf us chat ke members hi padh sakte hain.<br>• Photo aur voice notes private storage me hain.<br>• Hum tumhara data bechte nahi, na koi ads dikhate.<br>• Block, Report, Private account, Chat Lock tumhare haath me hain.<br>• Account delete karna tumhare haath me hai (Profile → Account).</p></div>
+      <div class="setbox"><b>⚠️ Ye hum nahi karte (sach)</b>
+        <p class="hint" style="margin:0">• Messages <b>end-to-end encrypted nahi</b> hain. App banane wala technically database me messages dekh sakta hai.<br>• Hum private chat tabhi dekhte hain jab report ki jaaye, rules todne ki jaanch ho ya kanoon maange.<br>• Chat Lock sirf app ke andar chat chhupata hai, encryption nahi.<br>• Bahut private cheezein (bank password, OTP) kabhi chat me mat bhejo.</p></div>
+      <div class="setbox"><b>Poori policy</b>
+        <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy padho</a>
+        <a href="/terms.html" target="_blank" rel="noopener">Terms of Use padho</a>
+        <small style="color:var(--muted)">Sawal ho to: prayagjaat0018@gmail.com</small></div>
+    </div>
+  </div>
 
   <div id="setPrivacy" class="hidden setpage">
     <div class="topbar"><button class="back" data-setback type="button" aria-label="Back">&#8592;</button><div class="title"><b>Privacy</b></div></div>
@@ -1192,7 +1207,7 @@
   }
   document.addEventListener('visibilitychange', syncBeast);
   const hiddenPhoto = new Set(), hiddenBio = new Set(); let blockedSet = new Set();
-  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'callhist', 'rewards', 'profile', 'feed', 'uprof', 'flist', 'activity', 'newpost', 'postview', 'setPrivacy', 'setBlocked', 'setAccount', 'compose', 'viewer'];
+  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'callhist', 'rewards', 'profile', 'safety', 'feed', 'uprof', 'flist', 'activity', 'newpost', 'postview', 'setPrivacy', 'setBlocked', 'setAccount', 'compose', 'viewer'];
   let current = 'loading';
   function show(name) {
     const prevScreen = current;
@@ -3034,6 +3049,7 @@
   function paintBeastRow() { const l = BEAST_LABEL[beastMode] || BEAST_LABEL.poster; $('beastSw').textContent = l[0]; $('beastSub').textContent = l[1]; }
   $('goBeast').onclick = () => { beastMode = beastMode === 'poster' ? 'moves' : beastMode === 'moves' ? 'off' : 'poster'; try { localStorage.setItem('baatein-beast-mode', beastMode); } catch (_) {} paintBeastRow(); syncBeast(); };
   paintBeastRow();
+  $('goSafety').onclick = () => show('safety');
   $('goAccount').onclick = () => { show('setAccount'); $('acEmail').textContent = (session && session.user && session.user.email) || '-'; $('acMsg').textContent = ''; $('acPass').value = ''; $('acDelTxt').value = ''; };
   $('acPassBtn').onclick = async () => {
     const pw = $('acPass').value; $('acMsg').style.color = '';
