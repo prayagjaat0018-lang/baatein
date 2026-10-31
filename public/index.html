@@ -173,6 +173,29 @@
   #vSong span { background:rgba(0,0,0,.45); color:#fff; padding:6px 12px; border-radius:20px; font-size:13px; max-width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #vLike { position:absolute; right:16px; bottom:28px; z-index:3; width:54px; height:54px; border-radius:50%; border:0; background:rgba(255,255,255,.18); font-size:26px; cursor:pointer; }
   #vLike.hidden { display:none !important; }
+  #beastBg { position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; opacity:0; transition:opacity .5s; }
+  #beastBg.on { opacity:.5; }
+  #beastWrap { position:absolute; bottom:70px; left:0; width:240px; height:360px; }
+  #beastSvg { width:100%; height:100%; overflow:visible; filter:drop-shadow(0 0 14px rgba(255,45,85,.35)); }
+  #beastFx { position:absolute; inset:0; }
+  .bfx { position:absolute; left:-20px; top:120px; width:280px; height:6px; border-radius:6px; background:linear-gradient(90deg,transparent,#ff2d55,#fff,transparent); transform:rotate(-35deg); opacity:0; animation:bslash .4s ease-out; }
+  .bfx.slashL { transform:rotate(35deg); }
+  .bfx::after { content:''; position:absolute; left:20px; right:20px; top:16px; height:4px; border-radius:4px; background:inherit; }
+  @keyframes bslash { 0% { opacity:0; clip-path:inset(0 100% 0 0); } 30% { opacity:1; } 100% { opacity:0; clip-path:inset(0 0 0 0); } }
+  .app { z-index:1; }
+  #beastPoster { display:none; position:absolute; inset:-4%; background:#0B0B12 url('/beast-poster.jpg') 28% center / cover no-repeat; opacity:.34; animation:bzoom 26s ease-in-out infinite alternate; }
+  #beastBg.poster { opacity:1; } #beastBg.poster #beastPoster { display:block; } #beastBg.poster #beastWrap { display:none; }
+  #beastRain { display:none; position:absolute; inset:0; background:repeating-linear-gradient(100deg, rgba(190,210,255,.0) 0 14px, rgba(190,210,255,.10) 14px 15px); background-size:60px 120px; animation:brain .5s linear infinite; opacity:.5; }
+  #beastBg.poster #beastRain { display:block; }
+  #beastFlash { display:none; position:absolute; inset:0; background:#cfe0ff; opacity:0; animation:bflash 11s infinite; }
+  #beastBg.poster #beastFlash { display:block; }
+  @keyframes bzoom { from { transform:scale(1) translateX(0); } to { transform:scale(1.12) translateX(-2%); } }
+  @keyframes brain { from { background-position:0 0; } to { background-position:-20px 120px; } }
+  @keyframes bflash { 0%,94%,100% { opacity:0; } 95% { opacity:.16; } 96% { opacity:0; } 97% { opacity:.1; } 98% { opacity:0; } }
+  #webFx { position:fixed; inset:0; z-index:1500; pointer-events:none; }
+  #webFx svg { width:100%; height:100%; }
+  #webFx path { fill:none; stroke:#e9e9f7; stroke-linecap:round; filter:drop-shadow(0 0 3px rgba(255,255,255,.55)); }
+  @media (prefers-reduced-motion: reduce) { #beastBg { display:none; } #webFx { display:none; } }
   .setrow { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; padding:14px 16px; border:0; border-radius:16px; background:var(--card); color:var(--text); font:inherit; font-weight:600; text-align:left; cursor:pointer; }
   .setrow small { color:var(--muted); font-weight:500; }
   .setpage { display:flex; flex-direction:column; gap:12px; }
@@ -495,6 +518,8 @@
   <div class="sp-word">Baatein</div>
   <div class="sp-sub">बातें</div>
 </div>
+<div id="beastBg" aria-hidden="true"></div>
+<div id="webFx" aria-hidden="true"></div>
 <div class="app">
 
   <div id="loading" style="flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-weight:600"><div class="ld"><i></i><i></i><i></i></div></div>
@@ -774,6 +799,7 @@
     <button class="main" id="saveBtn" type="submit">Save</button>
     <button class="setrow" id="goPrivacy" type="button"><span>🔒 Privacy<br><small>Online status, photo, bio kise dikhe</small></span><span>›</span></button>
     <button class="setrow" id="goBlocked" type="button"><span>🚫 Blocked users<br><small>Jinhe block kiya unki list</small></span><span>›</span></button>
+    <button class="setrow" id="goBeast" type="button"><span>🐺 The Beast<br><small id="beastSub">...</small></span><span id="beastSw">POSTER</span></button>
     <button class="setrow" id="goAccount" type="button"><span>⚙️ Account<br><small>Password, sab jagah se logout, delete</small></span><span>›</span></button>
     <div class="madeby">Baatein · banane wala: <b>Prayag</b> (Udaipur, India)<br>Feedback ya idea ho to unhe batao!</div>
     <button class="ghost hidden" id="pNotifBtn" type="button">🔔 Notifications on karo</button>
@@ -889,10 +915,186 @@
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const $ = (id) => document.getElementById(id);
+  // ---------------- THE BEAST (apna original hero) + jaala animation ----------------
+  const Beast = (() => {
+    const NS = 'http://www.w3.org/2000/svg';
+    const root = $('beastBg');
+    const BODY = '#12121c', EDGE = '#5a3fc0', RED = '#ff2d55', CLAW = '#d9dcee';
+    const limb = (id, d, extra) => '<g id="' + id + '">' + '<path d="' + d + '" fill="' + BODY + '" stroke="' + EDGE + '" stroke-width="1.6" stroke-linejoin="round"/>' + (extra || '') + '</g>';
+    const arm = (p, side) => '<g id="' + p + 'A">' +
+      '<path d="M-9 0 L9 0 L6 38 L-6 38Z" fill="' + BODY + '" stroke="' + EDGE + '" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<g id="' + p + 'E" transform="translate(0 38)"><path d="M-7 0 L7 0 L6 32 L-6 32Z" fill="' + BODY + '" stroke="' + EDGE + '" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<path d="M-7 8 L-12 14 L-7 18Z M7 8 L12 14 L7 18Z" fill="' + RED + '"/>' +
+      '<g transform="translate(0 32)"><path d="M-5 0 L5 0 L4 8 L-4 8Z" fill="' + BODY + '" stroke="' + EDGE + '" stroke-width="1.2"/>' +
+      '<path d="M-4 6 L-7 24 M0 7 L0 27 M4 6 L7 24" stroke="' + CLAW + '" stroke-width="2.4" stroke-linecap="round" fill="none"/></g></g></g>';
+    const leg = (p) => '<g id="' + p + 'L">' +
+      '<path d="M-11 0 L11 0 L7 44 L-7 44Z" fill="' + BODY + '" stroke="' + EDGE + '" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<g id="' + p + 'K" transform="translate(0 44)"><path d="M-7 0 L7 0 L5 42 L-5 42Z" fill="' + BODY + '" stroke="' + EDGE + '" stroke-width="1.6" stroke-linejoin="round"/>' +
+      '<path d="M-7 4 L0 16 L7 4Z" fill="' + RED + '" opacity=".85"/>' +
+      '<path d="M-6 42 L6 42 L13 52 L-9 52Z" fill="' + BODY + '" stroke="' + EDGE + '" stroke-width="1.4" stroke-linejoin="round"/></g></g>';
+    const svg =
+      '<svg id="beastSvg" viewBox="-110 -170 220 330" xmlns="' + NS + '">' +
+      '<defs><filter id="bGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' +
+      '<g id="bRoot"><g id="bHip">' +
+        '<g id="bLegs"><g id="bLL" transform="translate(-14 0)">' + leg('l') + '</g><g id="bRL" transform="translate(14 0)">' + leg('r') + '</g></g>' +
+        '<g id="bTorso">' +
+          '<g id="bScarf" transform="translate(0 -74)"><path d="M-14 0 L14 0 L40 40 L26 36 L30 62 L10 30 L-6 50 L-12 22Z" fill="#8b1030" stroke="#3a0a18" stroke-width="1.2"/></g>' +
+          '<g transform="translate(-32 -70)">' + '<g id="bLA">' + arm('l') + '</g></g><g transform="translate(32 -70)"><g id="bRA">' + arm('r') + '</g></g>' +
+          '<path d="M-18 0 L-35 -60 L-26 -80 L26 -80 L35 -60 L18 0Z" fill="' + BODY + '" stroke="' + EDGE + '" stroke-width="1.8" stroke-linejoin="round"/>' +
+          '<path d="M-33 -66 L-46 -86 L-24 -80Z M33 -66 L46 -86 L24 -80Z" fill="' + BODY + '" stroke="' + EDGE + '" stroke-width="1.6" stroke-linejoin="round"/>' +
+          '<path d="M-10 -62 L-2 -28 M0 -64 L0 -22 M10 -62 L2 -28" stroke="' + RED + '" stroke-width="3.2" stroke-linecap="round" fill="none" filter="url(#bGlow)"/>' +
+          '<g id="bHead" transform="translate(0 -80)">' +
+            '<path d="M-17 2 L-22 -20 L-15 -38 L-9 -62 L-3 -40 L0 -48 L3 -40 L9 -62 L15 -38 L22 -20 L17 2Z" fill="' + BODY + '" stroke="' + EDGE + '" stroke-width="1.8" stroke-linejoin="round"/>' +
+            '<path d="M-14 -20 L14 -20 L11 -2 L-11 -2Z" fill="#07070d"/>' +
+            '<path d="M-14 -17 L-3 -12 L-4 -8 L-15 -12Z M14 -17 L3 -12 L4 -8 L15 -12Z" fill="' + RED + '" filter="url(#bGlow)"/>' +
+            '<path d="M-9 -3 L-6 -7 L-3 -3 L0 -7 L3 -3 L6 -7 L9 -3" stroke="' + CLAW + '" stroke-width="1.4" fill="none" stroke-linejoin="round"/>' +
+          '</g>' +
+        '</g>' +
+      '</g></g></svg>';
+    root.innerHTML = '<div id="beastPoster"></div><div id="beastRain"></div><div id="beastFlash"></div><div id="beastWrap">' + svg + '<div id="beastFx"></div></div>';
+    const wrap = $('beastWrap');
+    const el = (id) => $(id);
+    const parts = { t: el('bTorso'), h: el('bHead'), la: el('bLA'), le: el('lE'), ra: el('bRA'), re: el('rE'), ll: el('lL'), lk: el('lK'), rl: el('rL'), rk: el('rK'), sc: el('bScarf'), hip: el('bHip') };
+    // aapas me upar wale <g id="lA"> ke andar l/r ke alag id hain
+    const P0 = { x: 0, y: 0, r: 0, s: 1, t: 0, h: 0, la: 22, le: -30, ra: -22, re: 30, ll: 18, lk: -34, rl: -18, rk: 34, hy: 0 };
+    let pose = Object.assign({}, P0), dir = 1, px = 0;
+    function apply() {
+      const p = pose;
+      parts.hip.setAttribute('transform', 'translate(' + p.x + ' ' + (p.y + p.hy) + ') rotate(' + p.r + ') scale(' + p.s + ')');
+      parts.t.setAttribute('transform', 'rotate(' + p.t + ')');
+      parts.h.setAttribute('transform', 'translate(0 -80) rotate(' + p.h + ')');
+      $('bLA').setAttribute('transform', 'rotate(' + p.la + ')'); $('lE').setAttribute('transform', 'translate(0 38) rotate(' + p.le + ')');
+      $('bRA').setAttribute('transform', 'rotate(' + p.ra + ')'); $('rE').setAttribute('transform', 'translate(0 38) rotate(' + p.re + ')');
+      $('lL').setAttribute('transform', 'rotate(' + p.ll + ')'); $('lK').setAttribute('transform', 'translate(0 44) rotate(' + p.lk + ')');
+      $('rL').setAttribute('transform', 'rotate(' + p.rl + ')'); $('rK').setAttribute('transform', 'translate(0 44) rotate(' + p.rk + ')');
+      $('bScarf').setAttribute('transform', 'translate(0 -74) rotate(' + (6 + Math.sin(performance.now() / 180) * 7) + ')');
+    }
+    const ease = (t) => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    let token = 0;
+    // frames: [[ms, {pose changes}], ...]
+    function play(frames) {
+      const my = ++token;
+      return new Promise((resolve) => {
+        let i = 0, from = Object.assign({}, pose), t0 = performance.now();
+        const step = (now) => {
+          if (my !== token || !running) return resolve();
+          const f = frames[i]; if (!f) return resolve();
+          const k = Math.min(1, (now - t0) / f[0]), e = ease(k);
+          const to = Object.assign({}, P0, f[1]);
+          for (const key in to) { if (key === 'fx') continue; pose[key] = from[key] + (to[key] - from[key]) * e; }
+          if (f[1].fx && k === 1) fx(f[1].fx);
+          apply();
+          if (k >= 1) { i++; from = Object.assign({}, pose); t0 = now; if (!frames[i]) return resolve(); }
+          requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      });
+    }
+    const B = (o) => Object.assign({}, o); // chhota helper
+    const crouch = { y: 34, hy: 0, ll: 34, lk: -62, rl: -34, rk: 62, la: 40, le: -70, ra: -40, re: 70, t: 0 };
+    const MOVES = {
+      stance: () => play([[700, B({ y: 6, ll: 22, lk: -40, rl: -22, rk: 40, la: 30, le: -60, ra: -30, re: 60 })], [700, B({ y: 0 })]]),
+      growl: () => play([[260, crouch], [200, Object.assign(B(crouch), { la: 150, le: -40, ra: -150, re: 40, h: -8, y: 20, t: -4 })], [150, Object.assign(B(crouch), { la: 160, le: -20, ra: -160, re: 20, h: -14, y: 14 })], [600, Object.assign(B(crouch), { la: 160, le: -20, ra: -160, re: 20, h: -14, y: 14, s: 1.05 })], [380, P0]]),
+      slash: () => play([
+        [260, { y: 24, ll: 36, lk: -60, rl: -26, rk: 44, t: 20, ra: -140, re: 50, la: 30, le: -60, h: 8 }],
+        [150, { y: 22, ll: 36, lk: -60, rl: -26, rk: 44, t: -26, ra: 38, re: 8, la: 70, le: -100, h: -6, fx: 'slashR' }],
+        [200, { y: 22, ll: 36, lk: -60, rl: -26, rk: 44, t: 26, la: -140, le: 50, ra: -30, re: 60, h: 8 }],
+        [150, { y: 22, ll: 36, lk: -60, rl: -26, rk: 44, t: -26, la: -38, le: -8, ra: -70, re: 100, h: -6, fx: 'slashL' }],
+        [420, P0]]),
+      flip: (d) => play([
+        [260, crouch],
+        [380, { y: -150, x: 90 * d, r: 190 * d, ll: 70, lk: -120, rl: -70, rk: 120, la: 60, le: -120, ra: -60, re: 120, s: .92 }],
+        [380, { y: -10, x: 190 * d, r: 360 * d, ll: 40, lk: -70, rl: -40, rk: 70, la: 50, le: -80, ra: -50, re: 80 }],
+        [160, Object.assign(B(crouch), { x: 190 * d, y: 38, r: 360 * d })],
+        [300, { x: 190 * d, r: 360 * d }]]),
+      run: (d) => {
+        const fr = []; const n = 6, dx = 260 * d / n;
+        for (let i = 1; i <= n; i++) {
+          const a = i % 2 ? 1 : -1;
+          fr.push([170, { x: dx * i, r: 14 * d, t: 8 * d, y: 14 + (i % 2) * 6, ll: 58 * a, lk: a > 0 ? -40 : -110, rl: -58 * a, rk: a > 0 ? 110 : 40, la: -50 * a, le: -70, ra: 50 * a, re: 70, h: -6 * d }]);
+        }
+        fr.push([260, { x: dx * n, r: 0 }]);
+        return play(fr);
+      },
+    };
+    // scene
+    function fx(kind) {
+      const f = $('beastFx'); const d = document.createElement('i'); d.className = 'bfx ' + kind; f.appendChild(d);
+      setTimeout(() => d.remove(), 420);
+    }
+    let running = false, sx = 0;
+    function place() { // hero ko kisi side par khada karo
+      const w = window.innerWidth; const room = Math.max(40, w - 300);
+      sx = Math.random() * room * 0.7; wrap.style.left = sx + 'px';
+    }
+    async function loop() {
+      let n = 0;
+      while (running) {
+        place(); pose = Object.assign({}, P0); apply();
+        const seq = [() => MOVES.stance(), () => MOVES.slash(), () => MOVES.growl(), () => MOVES.slash(), () => MOVES.stance()];
+        const dir = (window.innerWidth - sx) > sx ? 1 : -1; wrap.style.setProperty('--dir', dir);
+        for (const m of seq) { if (!running) return; await m(); }
+        if (!running) return;
+        await (Math.random() < .5 ? MOVES.run(dir) : MOVES.flip(dir));
+        if (!running) return;
+        await MOVES.growl();
+        n++;
+      }
+    }
+    function start() { if (running) return; running = true; root.classList.add('on'); loop(); }
+    function stop() { running = false; token++; root.classList.remove('on'); }
+    apply();
+    return { start, stop, MOVES, play, get pose() { return pose; }, set pose(v) { pose = v; apply(); }, P0, apply };
+  })();
+
+  // ---- Jaala (web) animation: koi bhi screen khulte hi corner se jaala phailta hai ----
+  function webFx() {
+    try {
+      if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const host = $('webFx'); const W = innerWidth, H = innerHeight;
+      const cx = Math.random() < .5 ? 0 : W, cy = Math.random() < .5 ? 0 : H;
+      const sx = cx === 0 ? 1 : -1, sy = cy === 0 ? 1 : -1;
+      const L = Math.hypot(W, H) * 0.95, N = 7, RINGS = 6;
+      const ang = (i) => (Math.PI / 2) * (i / (N - 1));
+      const pt = (i, r) => [cx + sx * Math.cos(ang(i)) * r, cy + sy * Math.sin(ang(i)) * r];
+      let d = '', paths = [];
+      const NSV = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(NSV, 'svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('preserveAspectRatio', 'none');
+      const add = (dd, w, op, delay, dur) => {
+        const p = document.createElementNS(NSV, 'path'); p.setAttribute('d', dd); p.setAttribute('pathLength', '1');
+        p.setAttribute('stroke-width', w); p.setAttribute('opacity', op); p.style.strokeDasharray = '1'; svg.appendChild(p);
+        p.animate([{ strokeDashoffset: 1 }, { strokeDashoffset: 0 }], { duration: dur, delay, fill: 'both', easing: 'ease-out' });
+      };
+      for (let i = 0; i < N; i++) { const e = pt(i, L); add('M' + cx + ' ' + cy + ' L' + e[0].toFixed(1) + ' ' + e[1].toFixed(1), 1.6, .9, 0, 260); }
+      for (let k = 1; k <= RINGS; k++) {
+        const r = L * (k / (RINGS + 1)) * 0.95; let dd = '';
+        for (let i = 0; i < N - 1; i++) {
+          const a = pt(i, r), b = pt(i + 1, r), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+          const qx = mx + (cx - mx) * 0.14, qy = my + (cy - my) * 0.14;
+          dd += (i === 0 ? 'M' + a[0].toFixed(1) + ' ' + a[1].toFixed(1) : '') + ' Q' + qx.toFixed(1) + ' ' + qy.toFixed(1) + ' ' + b[0].toFixed(1) + ' ' + b[1].toFixed(1);
+        }
+        add(dd, 1.1, .75, 120 + k * 55, 280);
+      }
+      host.innerHTML = ''; host.style.opacity = 1; host.style.transition = 'none'; host.appendChild(svg);
+      clearTimeout(webFx.t1); clearTimeout(webFx.t2);
+      webFx.t1 = setTimeout(() => { host.style.transition = 'opacity .45s'; host.style.opacity = 0; }, 900);
+      webFx.t2 = setTimeout(() => { host.innerHTML = ''; }, 1450);
+    } catch (_) {}
+  }
+  let beastMode = 'poster'; try { beastMode = localStorage.getItem('baatein-beast-mode') || 'poster'; } catch (_) {}
+  const BEAST_SCREENS = ['list', 'callhist', 'rewards'];
+  function syncBeast() {
+    const ok = BEAST_SCREENS.includes(current) && !document.hidden;
+    const root = $('beastBg');
+    if (ok && beastMode === 'moves') { root.classList.remove('poster'); Beast.start(); }
+    else { Beast.stop(); root.classList.toggle('poster', ok && beastMode === 'poster'); }
+  }
+  document.addEventListener('visibilitychange', syncBeast);
   const hiddenPhoto = new Set(), hiddenBio = new Set(); let blockedSet = new Set();
   const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'callhist', 'rewards', 'profile', 'setPrivacy', 'setBlocked', 'setAccount', 'compose', 'viewer'];
   let current = 'loading';
   function show(name) {
+    const prevScreen = current;
     current = name; screens.forEach((s) => $(s).classList.toggle('hidden', s !== name));
     const nav = $('bottomNav');
     if (nav) {
@@ -900,6 +1102,7 @@
       const which = { list: 'chats', callhist: 'calls', rewards: 'rewards' }[name];
       nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.go === which));
     }
+    try { syncBeast(); if (prevScreen !== name && !['loading', 'auth'].includes(name) && !BEAST_SCREENS.includes(name)) webFx(); } catch (_) {}
   }
 
   let session = null;   // login session
@@ -2724,6 +2927,10 @@
     });
   };
 
+  const BEAST_LABEL = { poster: ['POSTER', 'Raat, baarish aur The Beast background me'], moves: ['MOVES', 'Hero chats ke piche action karta hai'], off: ['OFF', 'Band hai (battery bachegi)'] };
+  function paintBeastRow() { const l = BEAST_LABEL[beastMode] || BEAST_LABEL.poster; $('beastSw').textContent = l[0]; $('beastSub').textContent = l[1]; }
+  $('goBeast').onclick = () => { beastMode = beastMode === 'poster' ? 'moves' : beastMode === 'moves' ? 'off' : 'poster'; try { localStorage.setItem('baatein-beast-mode', beastMode); } catch (_) {} paintBeastRow(); syncBeast(); };
+  paintBeastRow();
   $('goAccount').onclick = () => { show('setAccount'); $('acEmail').textContent = (session && session.user && session.user.email) || '-'; $('acMsg').textContent = ''; $('acPass').value = ''; $('acDelTxt').value = ''; };
   $('acPassBtn').onclick = async () => {
     const pw = $('acPass').value; $('acMsg').style.color = '';
