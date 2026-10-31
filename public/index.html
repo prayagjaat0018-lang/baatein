@@ -209,6 +209,18 @@
   .pdel { border:0; background:transparent; font-size:18px; cursor:pointer; }
   .pimg { width:100%; display:block; background:#11111B; max-height:70vh; object-fit:cover; }
   .pact { display:flex; align-items:center; gap:10px; padding:8px 12px; } .plike { border:0; background:transparent; font-size:26px; cursor:pointer; padding:0; }
+  .seg { display:flex; gap:8px; padding:0 2px; overflow-x:auto; } .seg button { border:0; border-radius:20px; padding:8px 14px; background:var(--card); color:var(--muted); font:inherit; font-weight:600; white-space:nowrap; cursor:pointer; } .seg button.on { background:var(--lime); color:#0B0B12; }
+  #fTabs { padding:4px 16px 8px; }
+  .preel { width:100%; display:block; border:0; background:#000; aspect-ratio:9/14; max-height:72vh; }
+  .preel.ig { aspect-ratio:auto; height:600px; max-height:none; background:#fff; }
+  video.preel { object-fit:contain; }
+  .plinkout { display:block; padding:6px 12px; font-size:12px; color:var(--muted); }
+  .pcom { padding:4px 12px 12px; display:flex; flex-direction:column; gap:8px; } .pcom.hidden { display:none !important; }
+  .cmt { display:flex; gap:8px; align-items:flex-start; font-size:14px; line-height:1.35; } .cmt .cb { flex:1; min-width:0; word-break:break-word; } .cmt small { color:var(--muted); margin-left:6px; } .cmt button { border:0; background:transparent; cursor:pointer; font-size:14px; }
+  .cmtnew { display:flex; gap:8px; } .cmtnew input { flex:1; }
+  .pcnt { color:var(--muted); font-size:14px; } .pbtn2 { border:0; background:transparent; font-size:24px; cursor:pointer; padding:0; }
+  .rbadge { position:absolute; right:6px; top:6px; font-size:16px; text-shadow:0 1px 3px #000; } .gcell { position:relative; }
+  .gcell video { width:100%; height:100%; object-fit:cover; display:block; } .gcell .gtxt { display:flex; align-items:center; justify-content:center; height:100%; font-size:28px; }
   .pcap { padding:0 12px 14px; font-size:14px; line-height:1.4; white-space:pre-wrap; word-break:break-word; }
   #upHead { display:flex; align-items:center; gap:18px; padding:8px 18px; }
   #upAv { width:88px; height:88px; font-size:34px; flex:none; }
@@ -606,6 +618,7 @@
         <button type="button" class="on" data-chat-view="all">All</button>
         <button type="button" data-chat-view="pinned">📌 Pinned</button>
         <button type="button" data-chat-view="archived">🗂️ Archived</button>
+        <button type="button" id="chipPosts">📸 Posts &amp; Reels</button>
       </div>
       <div id="qualitySearchResults" class="hidden" style="max-height:170px;overflow:auto"></div>
     </div>
@@ -875,6 +888,7 @@
 
   <div id="feed" class="hidden">
     <div class="topbar"><div class="title"><b>Feed</b><small>Dosto ki posts</small></div><button class="callBtn" id="fNew" type="button" style="width:auto;padding:0 14px">＋ Post</button></div>
+    <div class="seg" id="fTabs"><button type="button" data-fm="all" class="on">Sab</button><button type="button" data-fm="reels">🎬 Reels</button><button type="button" data-fm="following">Following</button></div>
     <div id="fSearchBox"><input id="fSearch" type="search" placeholder="🔍 Log dhundo (naam ya username)" autocomplete="off"></div>
     <div id="fResults"></div>
     <div id="fList"></div>
@@ -909,8 +923,12 @@
   <div id="newpost" class="hidden">
     <div class="topbar"><button class="back" id="npBack" type="button" aria-label="Back">&#8592;</button><div class="title"><b>Nayi post</b></div></div>
     <div class="pad" style="padding:6px 16px;display:flex;flex-direction:column;gap:12px">
+      <div class="seg" id="npTabs"><button type="button" data-k="image" class="on">📷 Photo</button><button type="button" data-k="video">🎬 Reel (video)</button><button type="button" data-k="link">🔗 Reel (link)</button></div>
       <img id="npImg" class="hidden" alt="Preview">
+      <video id="npVidPrev" class="hidden" controls playsinline muted style="width:100%;max-height:320px;border-radius:12px;background:#000"></video>
       <button class="ghost" id="npPick" type="button">📷 Photo chuno</button>
+      <input id="npLink" class="hidden" type="url" placeholder="YouTube Shorts ya Instagram reel ka link" autocomplete="off">
+      <p class="hint hidden" id="npLinkHint">Sirf public reel/short chalega. Link paste karo, wo app me chalegi. Video us app ki hi rehti hai.</p>
       <textarea id="npCap" maxlength="300" placeholder="Caption likho (optional)"></textarea>
       <p class="error" id="npErr"></p>
       <button class="main" id="npPost" type="button">Post karo</button>
@@ -3134,8 +3152,7 @@
     if (current !== 'uprof' || upUid !== uid) return;
     if (!list.length) $('upGrid').appendChild(mk('p', 'hint', me ? 'Abhi koi post nahi. Pehli post daalo! 📸' : 'Abhi koi post nahi.'));
     list.forEach((x) => {
-      const c = mk('div', 'gcell');
-      if (x.media_path && urlCache.get(x.media_path)) { const im = mk('img'); im.loading = 'lazy'; im.alt = ''; im.src = urlCache.get(x.media_path); c.appendChild(im); }
+      const c = gridTile(x);
       c.onclick = () => openPostView(x, p);
       $('upGrid').appendChild(c);
     });
@@ -3171,6 +3188,35 @@
     return row;
   }
 
+  // ---- Reel / post media ----
+  const vidObs = ('IntersectionObserver' in window) ? new IntersectionObserver((es) => es.forEach((e) => { const v = e.target; if (e.isIntersecting && e.intersectionRatio > 0.6) v.play().catch(() => {}); else v.pause(); }), { threshold: [0, 0.6] }) : null;
+  function buildMedia(p) {
+    if (p.yt_id && p.yt_id.startsWith('ig:')) {
+      const f = mk('iframe', 'preel ig'); f.src = 'https://www.instagram.com/p/' + encodeURIComponent(p.yt_id.slice(3)) + '/embed'; f.loading = 'lazy'; f.allowFullscreen = true; f.setAttribute('scrolling', 'no'); f.referrerPolicy = 'no-referrer-when-downgrade'; return f;
+    }
+    if (p.yt_id) {
+      const f = mk('iframe', 'preel'); f.src = 'https://www.youtube-nocookie.com/embed/' + encodeURIComponent(p.yt_id) + '?playsinline=1&rel=0&modestbranding=1'; f.loading = 'lazy'; f.allowFullscreen = true;
+      f.allow = 'encrypted-media; picture-in-picture; fullscreen'; return f;
+    }
+    if (p.media_path && p.kind === 'reel') {
+      const v = mk('video', 'preel'); v.playsInline = true; v.loop = true; v.muted = true; v.controls = true; v.preload = 'metadata'; const u = urlCache.get(p.media_path); if (u) v.src = u;
+      if (vidObs) vidObs.observe(v); return v;
+    }
+    if (p.media_path) { const im = mk('img', 'pimg'); im.alt = 'Post'; im.loading = 'lazy'; const u = urlCache.get(p.media_path); if (u) im.src = u; return im; }
+    return null;
+  }
+  function gridTile(x) {
+    const c = mk('div', 'gcell');
+    if (x.yt_id && x.yt_id.startsWith('ig:')) c.appendChild(mk('div', 'gtxt', '📷'));
+    else if (x.yt_id) { const im = mk('img'); im.loading = 'lazy'; im.alt = ''; im.src = 'https://i.ytimg.com/vi/' + encodeURIComponent(x.yt_id) + '/hqdefault.jpg'; c.appendChild(im); }
+    else if (x.media_path && urlCache.get(x.media_path)) {
+      if (x.kind === 'reel') { const v = mk('video'); v.muted = true; v.preload = 'metadata'; v.playsInline = true; v.src = urlCache.get(x.media_path) + '#t=0.1'; c.appendChild(v); }
+      else { const im = mk('img'); im.loading = 'lazy'; im.alt = ''; im.src = urlCache.get(x.media_path); c.appendChild(im); }
+    }
+    if (x.kind === 'reel') c.appendChild(mk('span', 'rbadge', '🎬'));
+    return c;
+  }
+
   // ---- Post card (feed + post viewer) ----
   function renderPostCard(p, info, onGone) {
     const card = mk('div', 'pcard');
@@ -3189,7 +3235,8 @@
       head.appendChild(d);
     }
     card.appendChild(head);
-    if (p.media_path) { const im = mk('img', 'pimg'); im.alt = 'Post'; im.loading = 'lazy'; const u = urlCache.get(p.media_path); if (u) im.src = u; card.appendChild(im); }
+    const media = buildMedia(p); if (media) card.appendChild(media);
+    if (p.yt_id && p.yt_id.startsWith('ig:')) { const a = mk('a', 'plinkout', '↗ Instagram par kholo'); a.href = 'https://www.instagram.com/p/' + p.yt_id.slice(3) + '/'; a.target = '_blank'; a.rel = 'noopener noreferrer'; card.appendChild(a); }
     const act = mk('div', 'pact'); const lb = mk('button', 'plike'); lb.type = 'button'; const cnt = mk('span');
     const paint = () => { lb.textContent = p.liked ? '❤️' : '🤍'; cnt.textContent = p.like_count + (Number(p.like_count) === 1 ? ' like' : ' likes'); };
     paint();
@@ -3198,8 +3245,45 @@
       const r = p.liked ? await sb.rpc('like_post', { pid: p.id }) : await sb.rpc('unlike_post', { pid: p.id });
       if (r.error) { p.liked = !p.liked; p.like_count = Number(p.like_count) + (p.liked ? 1 : -1); paint(); }
     };
-    act.append(lb, cnt); card.appendChild(act);
+    const cbtn = mk('button', 'pbtn2', '💬'); cbtn.type = 'button'; const ccnt = mk('span', 'pcnt');
+    const paintC = () => { ccnt.textContent = p.comment_count == null ? '' : String(p.comment_count); };
+    paintC();
+    if (p.comment_count == null) sb.rpc('comment_counts', { pids: [p.id] }).then((r) => { p.comment_count = (r.data && r.data[0] && Number(r.data[0].n)) || 0; paintC(); }, () => {});
+    act.append(lb, cnt, cbtn, ccnt); card.appendChild(act);
     if (p.caption) { const c = mk('div', 'pcap'); c.append(mk('b', null, dn(info.name, p.user_id) + ' '), document.createTextNode(p.caption)); card.appendChild(c); }
+    const cw = mk('div', 'pcom hidden'); card.appendChild(cw);
+    const addRow = (c) => {
+      const row = mk('div', 'cmt'); const cb = mk('div', 'cb'); const pr = c.profiles || {};
+      cb.append(mk('b', null, dn(pr.name || 'User', c.user_id) + ' '), document.createTextNode(c.text), mk('small', null, timeAgo(c.created_at)));
+      row.appendChild(cb);
+      if (c.user_id === myId() || p.user_id === myId()) {
+        const d = mk('button', null, '🗑️'); d.type = 'button';
+        d.onclick = async () => { const { error } = await sb.from('post_comments').delete().eq('id', c.id); if (!error) { row.remove(); p.comment_count = Math.max(0, Number(p.comment_count || 1) - 1); paintC(); } };
+        row.appendChild(d);
+      }
+      return row;
+    };
+    cbtn.onclick = async () => {
+      cw.classList.toggle('hidden'); if (cw.dataset.l) return; cw.dataset.l = '1';
+      const list = mk('div'); list.style.cssText = 'display:flex;flex-direction:column;gap:8px'; cw.appendChild(list); list.textContent = 'Loading…';
+      const { data, error } = await sb.from('post_comments').select('id,text,user_id,created_at,profiles(name,username,avatar_path)').eq('post_id', p.id).order('created_at', { ascending: true }).limit(100);
+      list.textContent = '';
+      if (error) { list.textContent = 'Comments load nahi hue. SQL (comments-reels.sql) chali hai?'; return; }
+      if (!(data || []).length) list.appendChild(mk('small', null, 'Abhi koi comment nahi. Pehle tum karo 🙂'));
+      (data || []).forEach((c) => list.appendChild(addRow(c)));
+      const nw = mk('div', 'cmtnew'); const inp = mk('input'); inp.type = 'text'; inp.maxLength = 300; inp.placeholder = 'Comment likho…';
+      const sbn = mk('button', 'main', 'Bhejo'); sbn.type = 'button'; sbn.style.cssText = 'width:auto;padding:0 16px';
+      const send = async () => {
+        const t = inp.value.trim(); if (!t) return; sbn.disabled = true;
+        const { data: c, error: e2 } = await sb.from('post_comments').insert({ post_id: p.id, user_id: myId(), text: t }).select('id,text,user_id,created_at').single();
+        sbn.disabled = false; if (e2 || !c) return;
+        c.profiles = { name: (profile && profile.name) || 'Me' }; inp.value = '';
+        if (list.firstChild && list.firstChild.tagName === 'SMALL') list.textContent = '';
+        list.appendChild(addRow(c)); p.comment_count = Number(p.comment_count || 0) + 1; paintC();
+      };
+      sbn.onclick = send; inp.onkeydown = (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); send(); } };
+      nw.append(inp, sbn); cw.appendChild(nw);
+    };
     return card;
   }
   async function openPostView(p, info) {
@@ -3211,16 +3295,20 @@
   }
 
   // ---- Feed ----
+  let feedMode = 'all';
+  document.querySelectorAll('#fTabs button').forEach((b) => b.addEventListener('click', () => { feedMode = b.dataset.fm; openFeed(true); }));
+  $('chipPosts').onclick = () => openFeed();
   async function openFeed(keep) {
     if (!keep) navStack = [];
     show('feed');
+    document.querySelectorAll('#fTabs button').forEach((b) => b.classList.toggle('on', b.dataset.fm === feedMode));
     const box = $('fList'); box.textContent = 'Loading…';
-    const { data, error } = await sb.rpc('get_feed', { lim: 30 });
+    const { data, error } = await sb.rpc('get_feed2', { mode: feedMode, lim: 40 });
     if (current !== 'feed') return;
     box.textContent = '';
-    if (error) { box.appendChild(mk('p', 'hint', 'Feed load nahi hua. SQL (social.sql) chali hai?')); return; }
+    if (error) { box.appendChild(mk('p', 'hint', 'Feed load nahi hua. SQL (comments-reels.sql) chali hai?')); return; }
     const list = data || [];
-    if (!list.length) { box.appendChild(mk('p', 'hint', 'Feed khali hai. Upar se logo ko dhundo aur follow karo, ya apni pehli post daalo! 📸')); return; }
+    if (!list.length) { box.appendChild(mk('p', 'hint', feedMode === 'reels' ? 'Abhi koi reel nahi. Pehli reel tum daalo! 🎬' : feedMode === 'following' ? 'Following me abhi koi post nahi. Logo ko dhundo aur follow karo! 📸' : 'Abhi koi post nahi. Apni pehli post daalo! 📸')); return; }
     await signMany(list.map((x) => x.media_path));
     if (current !== 'feed') return;
     list.forEach((x) => box.appendChild(renderPostCard(x, { name: x.name, username: x.username, avatar_path: x.avatar_path })));
@@ -3239,27 +3327,63 @@
   };
   $('fNew').onclick = () => openNewPost();
 
-  // ---- Nayi post ----
-  let npFile = null;
+  // ---- Nayi post / reel ----
+  let npFile = null, npKind = 'image';
+  function parseReelLink(u) {
+    try {
+      const x = new URL(String(u).trim()); const h = x.hostname.replace(/^(www|m)\./, '');
+      const ok = (id) => /^[\w-]{11}$/.test(id);
+      if (h === 'youtu.be') { const id = x.pathname.slice(1).split('/')[0]; return ok(id) ? id : null; }
+      if (h === 'youtube.com' || h === 'music.youtube.com') { const m = x.pathname.match(/^\/(shorts|embed|live)\/([\w-]{11})/); if (m) return m[2]; const v = x.searchParams.get('v'); return v && ok(v) ? v : null; }
+      if (h === 'instagram.com') { const m = x.pathname.match(/^\/(reel|reels|p|tv)\/([\w-]{5,30})/); return m ? 'ig:' + m[2] : null; }
+    } catch (_) {}
+    return null;
+  }
+  function setNpKind(k) {
+    npKind = k; npFile = null; $('npInput').value = ''; $('npErr').textContent = '';
+    document.querySelectorAll('#npTabs button').forEach((b) => b.classList.toggle('on', b.dataset.k === k));
+    $('npImg').classList.add('hidden'); $('npVidPrev').classList.add('hidden'); try { $('npVidPrev').pause(); } catch (_) {}
+    $('npPick').classList.toggle('hidden', k === 'link'); $('npLink').classList.toggle('hidden', k !== 'link'); $('npLinkHint').classList.toggle('hidden', k !== 'link');
+    $('npPick').textContent = k === 'video' ? '🎬 Video chuno' : '📷 Photo chuno';
+    $('npInput').accept = k === 'video' ? 'video/*' : 'image/*';
+  }
+  document.querySelectorAll('#npTabs button').forEach((b) => b.addEventListener('click', () => setNpKind(b.dataset.k)));
   function openNewPost() {
-    pushNav(); show('newpost'); npFile = null; $('npImg').classList.add('hidden'); $('npCap').value = ''; $('npErr').textContent = ''; $('npInput').value = '';
+    pushNav(); show('newpost'); setNpKind('image'); $('npCap').value = ''; $('npLink').value = '';
     $('npPost').disabled = false;
   }
   $('npPick').onclick = () => $('npInput').click();
   $('npImg').onclick = () => $('npInput').click();
   $('npInput').addEventListener('change', (e) => {
     const f = e.target.files && e.target.files[0]; if (!f) return;
+    if (npKind === 'video') {
+      if (!/^video\//.test(f.type)) { $('npErr').textContent = 'Sirf video chuno.'; return; }
+      if (f.size > 30 * 1024 * 1024) { $('npErr').textContent = 'Video 30 MB se chhoti honi chahiye (lagbhag 30-60 sec).'; return; }
+      npFile = f; $('npErr').textContent = ''; const v = $('npVidPrev'); v.src = URL.createObjectURL(f); v.classList.remove('hidden');
+      return;
+    }
     if (!/^image\//.test(f.type)) { $('npErr').textContent = 'Sirf photo chuno.'; return; }
     npFile = f; $('npErr').textContent = ''; $('npImg').src = URL.createObjectURL(f); $('npImg').classList.remove('hidden');
   });
   $('npPost').onclick = async () => {
-    if (!npFile) { $('npErr').textContent = 'Pehle photo chuno.'; return; }
+    const cap = $('npCap').value.trim().slice(0, 300); const me = myId();
+    if (npKind === 'link') {
+      const id = parseReelLink($('npLink').value); if (!id) { $('npErr').textContent = 'Ye link samajh nahi aaya. YouTube Shorts ya Instagram reel ka link do.'; return; }
+      $('npPost').disabled = true; $('npErr').textContent = 'Post ho raha hai…';
+      const ins = await sb.from('posts').insert({ user_id: me, kind: 'reel', yt_id: id, caption: cap });
+      if (ins.error) { $('npErr').textContent = 'Post nahi hui: ' + ins.error.message; $('npPost').disabled = false; return; }
+      navStack = []; openUserProfile(me, true); return;
+    }
+    if (!npFile) { $('npErr').textContent = npKind === 'video' ? 'Pehle video chuno.' : 'Pehle photo chuno.'; return; }
+    if (npKind === 'video') { const d = $('npVidPrev').duration; if (isFinite(d) && d > 90) { $('npErr').textContent = 'Reel 90 second se chhoti rakho.'; return; } }
     $('npPost').disabled = true; $('npErr').textContent = 'Upload ho raha hai…';
     try {
-      const me = myId(); const blob = await compress(npFile);
-      const path = me + '/' + crypto.randomUUID() + '.jpg';
-      const up = await sb.storage.from('posts').upload(path, blob, { contentType: 'image/jpeg' }); if (up.error) throw up.error;
-      const ins = await sb.from('posts').insert({ user_id: me, kind: 'image', media_path: path, caption: $('npCap').value.trim().slice(0, 300) });
+      let blob, ct, ext;
+      if (npKind === 'video') { blob = npFile; ct = npFile.type || 'video/mp4'; ext = /webm/.test(ct) ? 'webm' : /quicktime/.test(ct) ? 'mov' : 'mp4'; }
+      else { blob = await compress(npFile); ct = 'image/jpeg'; ext = 'jpg'; }
+      const path = me + '/' + crypto.randomUUID() + '.' + ext;
+      const up = await sb.storage.from('posts').upload(path, blob, { contentType: ct }); if (up.error) throw up.error;
+      const ins = await sb.from('posts').insert({ user_id: me, kind: npKind === 'video' ? 'reel' : 'image', media_path: path, caption: cap });
       if (ins.error) { sb.storage.from('posts').remove([path]).then(() => {}, () => {}); throw ins.error; }
       navStack = []; openUserProfile(me, true);
     } catch (e) { $('npErr').textContent = 'Post nahi hui: ' + (e.message || e); $('npPost').disabled = false; }
@@ -3297,9 +3421,9 @@
     rest.forEach((x) => {
       const row = personRow({ id: x.actor_id, name: x.name, username: x.username, avatar_path: x.avatar_path }, false);
       if (x.is_new) row.classList.add('new');
-      const t = row.querySelector('.pt'); t.querySelector('small').textContent = (x.kind === 'like' ? 'ne tumhari post like ki' : 'ne tumhe follow kiya') + ' · ' + timeAgo(x.created_at);
+      const t = row.querySelector('.pt'); t.querySelector('small').textContent = (x.kind === 'like' ? 'ne tumhari post like ki' : x.kind === 'comment' ? 'ne tumhari post par comment kiya' : 'ne tumhe follow kiya') + ' · ' + timeAgo(x.created_at);
       if (x.kind === 'follow' && x.rel === 'none') { const b = mk('button'); b.type = 'button'; b.style.padding = '8px 12px'; paintFollow(b, 'none', true); b.onclick = async (ev) => { ev.stopPropagation(); b.disabled = true; const r = await doFollowToggle(x.actor_id, 'none'); paintFollow(b, r, false); b.disabled = false; }; row.appendChild(b); }
-      if (x.kind === 'like' && x.media_path && urlCache.get(x.media_path)) { const im = mk('img', 'athumb'); im.alt = ''; im.src = urlCache.get(x.media_path); row.appendChild(im); }
+      if ((x.kind === 'like' || x.kind === 'comment') && x.media_path && /\.(jpe?g|png|webp)$/i.test(x.media_path) && urlCache.get(x.media_path)) { const im = mk('img', 'athumb'); im.alt = ''; im.src = urlCache.get(x.media_path); row.appendChild(im); }
       box.appendChild(row);
     });
     sb.rpc('mark_activity_seen').then(() => refreshBell(), () => {});
