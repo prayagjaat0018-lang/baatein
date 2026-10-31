@@ -488,6 +488,13 @@ io.on('connection', async (socket) => {
   });
 });
 
+// Render free plan 15 minute bina kisi request ke so jaata hai. Health check + khud ko jagaye rakhna.
+app.get('/health', (req, res) => res.json({ ok: true, t: Date.now() }));
+const SELF_URL = process.env.RENDER_EXTERNAL_URL || '';
+if (SELF_URL) {
+  setInterval(() => { fetch(SELF_URL + '/health').catch(() => {}); }, 10 * 60 * 1000);
+}
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log('Baatein chal raha hai: http://localhost:' + PORT);
