@@ -159,6 +159,18 @@
   #userCard.hidden { display:none !important; }
   #userCard .box { width:100%; max-width:340px; background:#171727; border-radius:24px; padding:28px 20px 20px; text-align:center; color:#fff; }
   #userCard .ucPhoto { width:140px; height:140px; border-radius:50%; margin:0 auto 14px; display:flex; align-items:center; justify-content:center; font-size:56px; font-weight:700; font-family:'Sora',sans-serif; }
+  .setrow { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; padding:14px 16px; border:0; border-radius:16px; background:var(--card); color:var(--text); font:inherit; font-weight:600; text-align:left; cursor:pointer; }
+  .setrow small { color:var(--muted); font-weight:500; }
+  .setpage { display:flex; flex-direction:column; gap:12px; }
+  .setpage .pad { padding:6px 16px 24px; display:flex; flex-direction:column; gap:12px; }
+  .setbox { background:var(--card); border-radius:16px; padding:14px 16px; display:flex; flex-direction:column; gap:8px; }
+  .setbox select { width:100%; padding:12px; border-radius:12px; border:0; background:#11111B; color:var(--text); font:inherit; }
+  .setbox .tg { display:flex; align-items:center; justify-content:space-between; gap:10px; font-weight:600; }
+  .setbox .tg input { width:22px; height:22px; accent-color:var(--lime); }
+  .dangerbtn { background:transparent; color:var(--danger); border:1.5px solid var(--danger); border-radius:16px; padding:12px; font:inherit; font-weight:700; cursor:pointer; }
+  .okmsg { color:var(--lime); font-size:13px; min-height:16px; }
+  #userCard .ucActs { display:flex; gap:8px; margin-bottom:8px; }
+  #userCard .ucActs button { flex:1; padding:10px; }
   #userCard h2 { margin:0; font-size:22px; }
   #userCard .ucUser { color:var(--violet); font-weight:600; margin-top:2px; }
   #userCard .ucBio { margin:14px 0 4px; color:#C9C9DA; font-size:14px; line-height:1.45; word-break:break-word; }
@@ -732,10 +744,48 @@
     <textarea id="pBio" maxlength="120" placeholder="Hey there! I'm on Baatein."></textarea>
     <p class="error" id="profError"></p>
     <button class="main" id="saveBtn" type="submit">Save</button>
+    <button class="setrow" id="goPrivacy" type="button"><span>🔒 Privacy<br><small>Online status, photo, bio kise dikhe</small></span><span>›</span></button>
+    <button class="setrow" id="goBlocked" type="button"><span>🚫 Blocked users<br><small>Jinhe block kiya unki list</small></span><span>›</span></button>
+    <button class="setrow" id="goAccount" type="button"><span>⚙️ Account<br><small>Password, sab jagah se logout, delete</small></span><span>›</span></button>
     <div class="madeby">Baatein · banane wala: <b>Prayag</b> (Udaipur, India)<br>Feedback ya idea ho to unhe batao!</div>
     <button class="ghost hidden" id="pNotifBtn" type="button">🔔 Notifications on karo</button>
     <button class="ghost" id="logoutBtn" type="button">Log out</button>
   </form>
+
+  <div id="setPrivacy" class="hidden setpage">
+    <div class="topbar"><button class="back" data-setback type="button" aria-label="Back">&#8592;</button><div class="title"><b>Privacy</b></div></div>
+    <div class="pad">
+      <div class="setbox"><label class="tg" style="margin:0;color:var(--text);font-size:15px">🟢 Mera online status dikhao<input type="checkbox" id="prOnline"></label>
+        <p class="hint" style="margin:0">Band karoge to doosre tumhe online nahi dekh payenge.</p></div>
+      <div class="setbox"><label for="prPhoto" style="margin:0">📷 Meri profile photo kaun dekh sake</label>
+        <select id="prPhoto"><option value="everyone">Sab log</option><option value="chats">Sirf jinse meri chat hai</option><option value="nobody">Koi nahi</option></select></div>
+      <div class="setbox"><label for="prBio" style="margin:0">📝 Mera bio kaun dekh sake</label>
+        <select id="prBio"><option value="everyone">Sab log</option><option value="chats">Sirf jinse meri chat hai</option><option value="nobody">Koi nahi</option></select></div>
+      <p class="okmsg" id="prMsg"></p>
+      <p class="hint">Photo/bio ki setting app ke andar lagti hai (chat list, profile card). Online status server se hi chhup jaata hai.</p>
+    </div>
+  </div>
+
+  <div id="setBlocked" class="hidden setpage">
+    <div class="topbar"><button class="back" data-setback type="button" aria-label="Back">&#8592;</button><div class="title"><b>Blocked users</b></div></div>
+    <div class="pad"><div id="blList"></div></div>
+  </div>
+
+  <div id="setAccount" class="hidden setpage">
+    <div class="topbar"><button class="back" data-setback type="button" aria-label="Back">&#8592;</button><div class="title"><b>Account</b></div></div>
+    <div class="pad">
+      <div class="setbox"><small style="color:var(--muted)">Email</small><b id="acEmail">-</b></div>
+      <div class="setbox"><label for="acPass" style="margin:0">🔑 Naya password</label>
+        <input id="acPass" type="password" minlength="6" placeholder="Kam se kam 6 characters" autocomplete="new-password">
+        <button class="main" id="acPassBtn" type="button">Password badlo</button></div>
+      <button class="ghost" id="acAllOut" type="button">📵 Sab devices se logout</button>
+      <div class="setbox"><b style="color:var(--danger)">Account delete</b>
+        <p class="hint" style="margin:0">Ye wapas nahi hoga. Tumhari profile aur chats hamesha ke liye hat jayengi. Confirm karne ke liye <b>DELETE</b> likho.</p>
+        <input id="acDelTxt" type="text" placeholder="DELETE" autocapitalize="characters" autocomplete="off">
+        <button class="dangerbtn" id="acDelBtn" type="button">🗑️ Mera account delete karo</button></div>
+      <p class="error" id="acMsg"></p>
+    </div>
+  </div>
 
   <nav id="bottomNav" class="hidden" aria-label="Main">
     <button type="button" data-go="chats" class="on"><span>💬</span><small>Chats</small></button>
@@ -777,6 +827,16 @@
     <div class="ucUser" id="ucUser"></div>
     <div class="ucOn" id="ucOn"></div>
     <div class="ucBio" id="ucBio"></div>
+    <div class="ucActs hidden" id="ucActs">
+      <button type="button" class="ghost" id="ucBlock">🚫 Block</button>
+      <button type="button" class="ghost" id="ucReport">⚠️ Report</button>
+    </div>
+    <div class="hidden" id="ucReportBox" style="text-align:left;display:flex;flex-direction:column;gap:8px;margin-bottom:8px">
+      <select id="ucReason" style="padding:10px;border-radius:12px;border:0;background:#11111B;color:#fff;font:inherit">
+        <option value="spam">Spam</option><option value="harassment">Pareshan / gaali</option><option value="impersonation">Fake / kisi aur ka naam</option><option value="inappropriate_content">Galat content</option><option value="other">Kuch aur</option></select>
+      <textarea id="ucDetails" maxlength="300" placeholder="Thoda bata do (optional)"></textarea>
+      <button type="button" class="main" id="ucReportSend">Report bhejo</button>
+    </div>
     <button type="button" class="ghost" id="ucClose">Close</button>
   </div>
 </div>
@@ -801,7 +861,8 @@
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const $ = (id) => document.getElementById(id);
-  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'callhist', 'rewards', 'profile', 'compose', 'viewer'];
+  const hiddenPhoto = new Set(), hiddenBio = new Set(); let blockedSet = new Set();
+  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'callhist', 'rewards', 'profile', 'setPrivacy', 'setBlocked', 'setAccount', 'compose', 'viewer'];
   let current = 'loading';
   function show(name) {
     current = name; screens.forEach((s) => $(s).classList.toggle('hidden', s !== name));
@@ -842,7 +903,7 @@
     return COLORS[h % COLORS.length];
   }
   const avatarMap = {}; // user_id -> photo path
-  function avatarUrl(uid) { const p = uid && avatarMap[uid]; return p ? sb.storage.from('avatars').getPublicUrl(p).data.publicUrl : null; }
+  function avatarUrl(uid) { const p = uid && !hiddenPhoto.has(uid) && avatarMap[uid]; return p ? sb.storage.from('avatars').getPublicUrl(p).data.publicUrl : null; }
   function paintAvatar(el, name, uid) {
     const url = avatarUrl(uid);
     if (url) { el.textContent = ''; el.style.background = '#222 center/cover no-repeat url("' + url + '")'; return; }
@@ -937,7 +998,7 @@
     openList();
     registerPush(false).then(updateNotifBanner, updateNotifBanner);
     loadBadges();
-    claimRefIfAny().then(syncPoints, syncPoints); clearInterval(ptsTimer); ptsTimer = setInterval(() => { syncPoints(); loadBadges(); }, 120000);
+    loadBlocks(); claimRefIfAny().then(syncPoints, syncPoints); clearInterval(ptsTimer); ptsTimer = setInterval(() => { syncPoints(); loadBadges(); }, 120000);
     if (isStandalone) sb.rpc('mark_installed').then(() => {}, () => {});
     loadStats(); clearInterval(statsTimer); statsTimer = setInterval(loadStats, 60000);
     if (pendingOpenCid) { const cid = pendingOpenCid; pendingOpenCid = null; loadList().then(() => openFromNotif(cid)); }
@@ -1071,6 +1132,7 @@
         .in('conversation_id', ids)
         .neq('user_id', me);
       others = res.data || [];
+      await refreshHidden(others.map((x) => x.profiles && x.profiles.id).filter(Boolean));
     }
     convs = mine.map((r) => {
       const o = others.find((x) => x.conversation_id === r.conversation_id);
@@ -1904,7 +1966,7 @@
       }
     } catch (_) {}
     await sb.auth.signOut();
-    chatView = 'all'; lockSessionOk = false; lockedSet = new Set();
+    chatView = 'all'; lockSessionOk = false; lockedSet = new Set(); blockedSet = new Set(); hiddenPhoto.clear(); hiddenBio.clear();
     session = null; profile = null; convs = []; openConvObj = null; statusGroups = []; seenSet = new Set();
     $('passInput').value = '';
     show('auth');
@@ -2470,19 +2532,113 @@
     const card = $('userCard');
     if (current === 'viewer') { clearTimeout(vTimer); $('vAudio').pause(); }
     $('ucName').textContent = ''; $('ucUser').textContent = ''; $('ucBio').textContent = 'Loading…'; $('ucOn').textContent = '';
+    ucUid = uid; $('ucReportBox').classList.add('hidden'); $('ucActs').classList.toggle('hidden', uid === myId()); syncBlockBtn();
     const ph = $('ucPhoto'); ph.textContent = '?'; ph.style.background = '#2A2A40';
     card.classList.remove('hidden');
     const { data, error } = await sb.from('profiles').select('id,name,username,bio,avatar_path').eq('id', uid).maybeSingle();
     if (card.classList.contains('hidden')) return;
     if (error || !data) { $('ucBio').textContent = 'Profile load nahi ho payi.'; return; }
     avatarMap[uid] = data.avatar_path || null;
+    await refreshHidden([uid]);
     paintAvatar(ph, data.name, uid);
     $('ucName').textContent = dn(data.name, uid);
     const bt = badgeMap.get(uid); $('ucOn').textContent = bt ? BADGE_LABEL[bt] || '' : '';
     $('ucUser').textContent = data.username ? '@' + data.username : '';
     if (onlineUserIds.has(uid)) $('ucOn').textContent = ($('ucOn').textContent ? $('ucOn').textContent + ' · ' : '') + '🟢 online';
-    $('ucBio').textContent = data.bio || 'Hey there! I\'m on Baatein.';
+    $('ucBio').textContent = hiddenBio.has(uid) ? '🔒 Bio chhupa hua hai' : (data.bio || 'Hey there! I\'m on Baatein.');
   }
+  let ucUid = null;
+  async function refreshHidden(ids) {
+    try {
+      ids = [...new Set(ids)].filter((x) => x && x !== myId()); if (!ids.length) return;
+      const { data, error } = await sb.rpc('hidden_profile_fields', { ids });
+      if (error) return;
+      ids.forEach((id) => { hiddenPhoto.delete(id); hiddenBio.delete(id); });
+      (data || []).forEach((r) => { if (r.hide_photo) hiddenPhoto.add(r.user_id); if (r.hide_bio) hiddenBio.add(r.user_id); });
+    } catch (_) {}
+  }
+  async function loadBlocks() {
+    try { const { data } = await sb.from('blocked_users').select('blocked_id'); blockedSet = new Set((data || []).map((r) => r.blocked_id)); } catch (_) {}
+  }
+  function syncBlockBtn() { $('ucBlock').textContent = blockedSet.has(ucUid) ? '✅ Unblock' : '🚫 Block'; }
+  $('ucBlock').onclick = async () => {
+    if (!ucUid) return;
+    const uid = ucUid;
+    if (blockedSet.has(uid)) {
+      const { error } = await sb.from('blocked_users').delete().eq('blocker_id', myId()).eq('blocked_id', uid);
+      if (!error) blockedSet.delete(uid);
+    } else {
+      if (!confirm('Is user ko block karein? Na wo tumhe message/call kar payega, na tum use.')) return;
+      const { error } = await sb.from('blocked_users').insert({ blocker_id: myId(), blocked_id: uid });
+      if (!error || error.code === '23505') blockedSet.add(uid);
+    }
+    syncBlockBtn();
+  };
+  $('ucReport').onclick = () => { $('ucReportBox').classList.toggle('hidden'); };
+  $('ucReportSend').onclick = async () => {
+    if (!ucUid) return;
+    const { error } = await sb.from('user_reports').insert({ reporter_id: myId(), reported_user_id: ucUid, reason: $('ucReason').value, details: $('ucDetails').value.trim().slice(0, 300) });
+    $('ucReportBox').classList.add('hidden'); $('ucDetails').value = '';
+    alert(error ? 'Report nahi gayi, dobara try karo.' : 'Report bhej di gayi. Shukriya 🙏');
+  };
+
+  // ---------------- Profile settings ----------------
+  const backToProfile = () => openProfile(false, profile);
+  document.querySelectorAll('[data-setback]').forEach((b) => { b.onclick = backToProfile; });
+  $('goPrivacy').onclick = async () => {
+    show('setPrivacy'); $('prMsg').textContent = '';
+    const { data } = await sb.from('privacy_settings').select('show_online,photo_vis,bio_vis').eq('user_id', myId()).maybeSingle();
+    $('prOnline').checked = !data || data.show_online !== false;
+    $('prPhoto').value = (data && data.photo_vis) || 'everyone';
+    $('prBio').value = (data && data.bio_vis) || 'everyone';
+  };
+  async function savePrivacy() {
+    const row = { user_id: myId(), show_online: $('prOnline').checked, photo_vis: $('prPhoto').value, bio_vis: $('prBio').value, updated_at: new Date().toISOString() };
+    const { error } = await sb.from('privacy_settings').upsert(row, { onConflict: 'user_id' });
+    $('prMsg').textContent = error ? 'Save nahi hua, dobara try karo.' : '✓ Save ho gaya';
+    if (!error && socket) socket.emit('privacy:online', { show: row.show_online });
+  }
+  ['prOnline', 'prPhoto', 'prBio'].forEach((id) => { $(id).onchange = savePrivacy; });
+
+  $('goBlocked').onclick = async () => {
+    show('setBlocked');
+    const box = $('blList'); box.textContent = 'Loading…';
+    const { data, error } = await sb.from('blocked_users').select('blocked_id, profiles!blocked_id(id,name,username,avatar_path)').eq('blocker_id', myId());
+    box.textContent = '';
+    if (error) { box.textContent = 'List load nahi hui.'; return; }
+    if (!data || !data.length) { box.innerHTML = '<p class="hint">Abhi koi blocked nahi hai. 🙂</p>'; return; }
+    data.forEach((r) => {
+      const p = r.profiles || {};
+      const row = document.createElement('div'); row.className = 'setbox'; row.style.cssText = 'flex-direction:row;align-items:center;margin-bottom:8px';
+      const av = document.createElement('div'); av.className = 'avatar'; avatarMap[r.blocked_id] = p.avatar_path || null; paintAvatar(av, p.name || '?', r.blocked_id);
+      const nm = document.createElement('div'); nm.style.flex = '1'; nm.innerHTML = ''; const b = document.createElement('b'); b.textContent = p.name || 'User'; const sm = document.createElement('small'); sm.style.display = 'block'; sm.style.color = 'var(--muted)'; sm.textContent = p.username ? '@' + p.username : ''; nm.append(b, sm);
+      const un = document.createElement('button'); un.type = 'button'; un.className = 'ghost'; un.style.padding = '8px 14px'; un.textContent = 'Unblock';
+      un.onclick = async () => { un.disabled = true; const { error: e2 } = await sb.from('blocked_users').delete().eq('blocker_id', myId()).eq('blocked_id', r.blocked_id); if (!e2) { blockedSet.delete(r.blocked_id); row.remove(); } else un.disabled = false; };
+      row.append(av, nm, un); box.appendChild(row);
+    });
+  };
+
+  $('goAccount').onclick = () => { show('setAccount'); $('acEmail').textContent = (session && session.user && session.user.email) || '-'; $('acMsg').textContent = ''; $('acPass').value = ''; $('acDelTxt').value = ''; };
+  $('acPassBtn').onclick = async () => {
+    const pw = $('acPass').value; $('acMsg').style.color = '';
+    if (pw.length < 6) { $('acMsg').textContent = 'Password kam se kam 6 characters ka rakho.'; return; }
+    const { error } = await sb.auth.updateUser({ password: pw });
+    if (error) { $('acMsg').textContent = 'Password nahi badla: ' + error.message; return; }
+    $('acPass').value = ''; $('acMsg').style.color = 'var(--lime)'; $('acMsg').textContent = '✓ Password badal gaya';
+  };
+  $('acAllOut').onclick = async () => {
+    if (!confirm('Sab devices se logout karein?')) return;
+    try { await sb.auth.signOut({ scope: 'global' }); } catch (_) {}
+    logout();
+  };
+  $('acDelBtn').onclick = async () => {
+    $('acMsg').style.color = '';
+    if ($('acDelTxt').value.trim() !== 'DELETE') { $('acMsg').textContent = 'Pehle box me DELETE likho.'; return; }
+    if (!confirm('Pakka? Account hamesha ke liye delete ho jayega.')) return;
+    const { error } = await sb.rpc('delete_my_account');
+    if (error) { $('acMsg').textContent = 'Delete nahi hua: ' + error.message; return; }
+    logout();
+  };
   function closeUserCard() {
     $('userCard').classList.add('hidden');
     if (current === 'viewer' && vGroup) renderStatus();
