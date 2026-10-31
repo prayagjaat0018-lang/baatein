@@ -196,6 +196,33 @@
   #webFx svg { width:100%; height:100%; }
   #webFx path { fill:none; stroke:#e9e9f7; stroke-linecap:round; filter:drop-shadow(0 0 3px rgba(255,255,255,.55)); }
   @media (prefers-reduced-motion: reduce) { #beastBg { display:none; } #webFx { display:none; } }
+  #feed, #uprof, #flist, #activity, #newpost, #postview { flex:1; display:flex; flex-direction:column; min-height:0; overflow-y:auto; }
+  #fList, #flBox, #acBox, #pvBody { padding:6px 12px 24px; display:flex; flex-direction:column; gap:12px; }
+  #fSearchBox { padding:0 14px 8px; } #fResults { padding:0 8px; }
+  .prow { display:flex; align-items:center; gap:12px; padding:8px 8px; border-radius:14px; cursor:pointer; }
+  .prow.new { background:#1B1733; }
+  .prow .pt { flex:1; min-width:0; } .prow .pt b { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .prow .pt small { color:var(--muted); }
+  .athumb { width:44px; height:44px; border-radius:8px; object-fit:cover; }
+  .achead { margin:10px 8px 2px; font-size:15px; color:var(--muted); }
+  .pcard { background:var(--card); border-radius:18px; overflow:hidden; }
+  .phead { display:flex; align-items:center; gap:10px; padding:10px 12px; cursor:pointer; } .phead .pt { flex:1; } .phead .pt small { display:block; color:var(--muted); font-size:12px; }
+  .pdel { border:0; background:transparent; font-size:18px; cursor:pointer; }
+  .pimg { width:100%; display:block; background:#11111B; max-height:70vh; object-fit:cover; }
+  .pact { display:flex; align-items:center; gap:10px; padding:8px 12px; } .plike { border:0; background:transparent; font-size:26px; cursor:pointer; padding:0; }
+  .pcap { padding:0 12px 14px; font-size:14px; line-height:1.4; white-space:pre-wrap; word-break:break-word; }
+  #upHead { display:flex; align-items:center; gap:18px; padding:8px 18px; }
+  #upAv { width:88px; height:88px; font-size:34px; flex:none; }
+  #upStats { display:flex; flex:1; justify-content:space-around; text-align:center; }
+  #upStats button { border:0; background:transparent; color:var(--text); font:inherit; cursor:pointer; padding:4px; }
+  #upStats b { display:block; font-size:18px; } #upStats small { color:var(--muted); }
+  #upInfo { padding:2px 18px 6px; } #upInfo b { font-size:16px; } #upInfo .u { color:var(--muted); font-size:13px; } #upBio { margin-top:4px; font-size:14px; white-space:pre-wrap; }
+  #upActs { display:flex; gap:8px; padding:6px 18px 10px; } #upActs button { flex:1; padding:10px; } #upActs p { margin:0; }
+  #upGrid { display:grid; grid-template-columns:repeat(3,1fr); gap:2px; padding:4px 0 24px; } #upGrid p { grid-column:1/-1; padding:16px; text-align:center; }
+  .gcell { aspect-ratio:1; background:#1A1A26; cursor:pointer; overflow:hidden; } .gcell img { width:100%; height:100%; object-fit:cover; display:block; }
+  #bellBtn { background:#1E1B33; position:relative; font-size:18px; }
+  #bellDot { position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:9px; background:#FF2D55; color:#fff; font-size:11px; font-style:normal; display:flex; align-items:center; justify-content:center; font-weight:700; }
+  #bellDot.hidden { display:none !important; }
+  #npImg { width:100%; max-height:50vh; object-fit:contain; border-radius:14px; background:#11111B; }
   .setrow { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; padding:14px 16px; border:0; border-radius:16px; background:var(--card); color:var(--text); font:inherit; font-weight:600; text-align:left; cursor:pointer; }
   .setrow small { color:var(--muted); font-weight:500; }
   .setpage { display:flex; flex-direction:column; gap:12px; }
@@ -562,7 +589,10 @@
         </div>
         <div class="bt"><b>Baatein</b><small class="by">by Prayag ❤️</small></div>
       </div>
-      <button class="avatar" id="meBtn" aria-label="My profile">?</button>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="avatar" id="bellBtn" type="button" aria-label="Activity">🔔<i id="bellDot" class="hidden"></i></button>
+        <button class="avatar" id="meBtn" aria-label="My profile">?</button>
+      </div>
     </header>
     <div id="notifBanner" class="notif-banner hidden"><div><b>🔔 Notifications on karo</b><span id="notifHint">App band ho tab bhi message aur call ki ring aayegi.</span></div><button id="notifBtn" type="button">Enable</button><button id="notifX" type="button" aria-label="Baad me">✕</button></div>
     <div id="selBar" class="sel-bar hidden"><span id="selCount">0 selected</span><button type="button" id="selAll">All</button><button type="button" id="selLock">🔒 Lock</button><button type="button" class="danger" id="selDel">🗑 Delete</button><button type="button" id="selCancel">Cancel</button></div>
@@ -743,7 +773,7 @@
   </form>
 
   <div id="songPicker" class="hidden" role="dialog" aria-modal="true" aria-label="Gaana dhundo">
-    <div class="spTop"><button class="back" id="spClose" type="button" aria-label="Back">&#8592;</button>
+    <div class="spTop"><button class="back" id="spBack" type="button" aria-label="Back">&#8592;</button>
       <input id="spQ" type="search" placeholder="Gaane ya artist ka naam…" autocomplete="off"></div>
     <div id="spList"><p class="hint" style="padding:0 4px">Naam likho, jaise "Kesariya" ya "Arijit". Preview ke liye ▶ dabao, gaana chunne ke liye us par tap karo.</p></div>
     <p class="hint" style="text-align:center;padding:6px 14px 12px;margin:0">Music previews: iTunes</p>
@@ -811,6 +841,8 @@
     <div class="pad">
       <div class="setbox"><label class="tg" style="margin:0;color:var(--text);font-size:15px">🟢 Mera online status dikhao<input type="checkbox" id="prOnline"></label>
         <p class="hint" style="margin:0">Band karoge to doosre tumhe online nahi dekh payenge.</p></div>
+      <div class="setbox"><label class="tg" style="margin:0;color:var(--text);font-size:15px">🔒 Private account<input type="checkbox" id="prPrivate"></label>
+        <p class="hint" style="margin:0">Private me log pehle follow request bhejte hain, tumhare accept karne par hi posts dekh sakte hain.</p></div>
       <div class="setbox"><label for="prPhoto" style="margin:0">📷 Meri profile photo kaun dekh sake</label>
         <select id="prPhoto"><option value="everyone">Sab log</option><option value="chats">Sirf jinse meri chat hai</option><option value="nobody">Koi nahi</option></select></div>
       <div class="setbox"><label for="prBio" style="margin:0">📝 Mera bio kaun dekh sake</label>
@@ -841,8 +873,59 @@
     </div>
   </div>
 
+  <div id="feed" class="hidden">
+    <div class="topbar"><div class="title"><b>Feed</b><small>Dosto ki posts</small></div><button class="callBtn" id="fNew" type="button" style="width:auto;padding:0 14px">＋ Post</button></div>
+    <div id="fSearchBox"><input id="fSearch" type="search" placeholder="🔍 Log dhundo (naam ya username)" autocomplete="off"></div>
+    <div id="fResults"></div>
+    <div id="fList"></div>
+  </div>
+
+  <div id="uprof" class="hidden">
+    <div class="topbar"><button class="back" id="upBack" type="button" aria-label="Back">&#8592;</button><div class="title"><b id="upTitle">Profile</b></div><button class="callBtn" id="upMore" type="button" aria-label="Block ya report">⋯</button></div>
+    <div id="upHead">
+      <div class="avatar" id="upAv">?</div>
+      <div id="upStats">
+        <button type="button" id="upN1b"><b id="upN1">-</b><small>posts</small></button>
+        <button type="button" id="upN2b"><b id="upN2">-</b><small>followers</small></button>
+        <button type="button" id="upN3b"><b id="upN3">-</b><small>following</small></button>
+      </div>
+    </div>
+    <div id="upInfo"><b id="upName"></b><div class="u" id="upUser"></div><div id="upBio"></div></div>
+    <div id="upActs"></div>
+    <p class="hint hidden" id="upPriv" style="text-align:center;padding:24px 16px">🔒 Ye account private hai.<br>Posts dekhne ke liye Follow request bhejo.</p>
+    <div id="upGrid"></div>
+  </div>
+
+  <div id="flist" class="hidden">
+    <div class="topbar"><button class="back" id="flBack" type="button" aria-label="Back">&#8592;</button><div class="title"><b id="flTitle">Followers</b></div></div>
+    <div id="flBox"></div>
+  </div>
+
+  <div id="activity" class="hidden">
+    <div class="topbar"><button class="back" id="acBack" type="button" aria-label="Back">&#8592;</button><div class="title"><b>Activity</b><small>Requests, followers, likes</small></div></div>
+    <div id="acBox"></div>
+  </div>
+
+  <div id="newpost" class="hidden">
+    <div class="topbar"><button class="back" id="npBack" type="button" aria-label="Back">&#8592;</button><div class="title"><b>Nayi post</b></div></div>
+    <div class="pad" style="padding:6px 16px;display:flex;flex-direction:column;gap:12px">
+      <img id="npImg" class="hidden" alt="Preview">
+      <button class="ghost" id="npPick" type="button">📷 Photo chuno</button>
+      <textarea id="npCap" maxlength="300" placeholder="Caption likho (optional)"></textarea>
+      <p class="error" id="npErr"></p>
+      <button class="main" id="npPost" type="button">Post karo</button>
+    </div>
+    <input type="file" id="npInput" accept="image/*" class="hidden">
+  </div>
+
+  <div id="postview" class="hidden">
+    <div class="topbar"><button class="back" id="pvBack" type="button" aria-label="Back">&#8592;</button><div class="title"><b>Post</b></div></div>
+    <div id="pvBody"></div>
+  </div>
+
   <nav id="bottomNav" class="hidden" aria-label="Main">
     <button type="button" data-go="chats" class="on"><span>💬</span><small>Chats</small></button>
+    <button type="button" data-go="feed"><span>📸</span><small>Feed</small></button>
     <button type="button" data-go="calls"><span>📞</span><small>Calls</small></button>
     <button type="button" data-go="rewards"><span>🎁<i class="navchip" id="navPts"></i></span><small>Rewards</small></button>
     <button type="button" data-go="me"><span>👤</span><small>Profile</small></button>
@@ -1091,15 +1174,15 @@
   }
   document.addEventListener('visibilitychange', syncBeast);
   const hiddenPhoto = new Set(), hiddenBio = new Set(); let blockedSet = new Set();
-  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'callhist', 'rewards', 'profile', 'setPrivacy', 'setBlocked', 'setAccount', 'compose', 'viewer'];
+  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'callhist', 'rewards', 'profile', 'feed', 'uprof', 'flist', 'activity', 'newpost', 'postview', 'setPrivacy', 'setBlocked', 'setAccount', 'compose', 'viewer'];
   let current = 'loading';
   function show(name) {
     const prevScreen = current;
     current = name; screens.forEach((s) => $(s).classList.toggle('hidden', s !== name));
     const nav = $('bottomNav');
     if (nav) {
-      nav.classList.toggle('hidden', !['list', 'callhist', 'rewards'].includes(name));
-      const which = { list: 'chats', callhist: 'calls', rewards: 'rewards' }[name];
+      nav.classList.toggle('hidden', !['list', 'callhist', 'rewards', 'feed'].includes(name));
+      const which = { list: 'chats', callhist: 'calls', rewards: 'rewards', feed: 'feed' }[name];
       nav.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.go === which));
     }
     try { syncBeast(); if (prevScreen !== name && !['loading', 'auth'].includes(name) && !BEAST_SCREENS.includes(name)) webFx(); } catch (_) {}
@@ -1229,7 +1312,7 @@
     openList();
     registerPush(false).then(updateNotifBanner, updateNotifBanner);
     loadBadges();
-    loadBlocks(); claimRefIfAny().then(syncPoints, syncPoints); clearInterval(ptsTimer); ptsTimer = setInterval(() => { syncPoints(); loadBadges(); }, 120000);
+    loadBlocks(); claimRefIfAny().then(syncPoints, syncPoints); clearInterval(ptsTimer); ptsTimer = setInterval(() => { syncPoints(); loadBadges(); refreshBell(); }, 90000); refreshBell();
     if (isStandalone) sb.rpc('mark_installed').then(() => {}, () => {});
     loadStats(); clearInterval(statsTimer); statsTimer = setInterval(loadStats, 60000);
     if (pendingOpenCid) { const cid = pendingOpenCid; pendingOpenCid = null; loadList().then(() => openFromNotif(cid)); }
@@ -1549,7 +1632,6 @@
     renderList();
   }));
 
-  $('meBtn').onclick = () => openProfile(false, profile);
   $('newBtn').onclick = () => openNewChat();
 
   // ---------------- One chat ----------------
@@ -1912,7 +1994,7 @@
   const spAudio = new Audio(); let spTimer = null, spSeq = 0;
   function closePicker() { spAudio.pause(); $('songPicker').classList.add('hidden'); }
   $('cSongSearch').onclick = () => { $('songPicker').classList.remove('hidden'); $('spQ').focus(); };
-  $('spClose').onclick = closePicker;
+  $('spBack').onclick = closePicker;
   $('spQ').oninput = () => { clearTimeout(spTimer); spTimer = setTimeout(doSongSearch, 450); };
   async function doSongSearch() {
     const q = $('spQ').value.trim(); const box = $('spList'); const my = ++spSeq;
@@ -2555,8 +2637,8 @@
   }
   document.querySelectorAll('#bottomNav button').forEach((b) => b.addEventListener('click', () => {
     const g = b.dataset.go;
-    if (g === 'chats') openList(); else if (g === 'calls') openCallHistory(); else if (g === 'rewards') openRewards();
-    else if (g === 'me') openProfile(false, profile);
+    if (g === 'feed') openFeed(); else if (g === 'chats') openList(); else if (g === 'calls') openCallHistory(); else if (g === 'rewards') openRewards();
+    else if (g === 'me') { navStack = []; openUserProfile(myId(), true); }
   }));
   $('chBack').onclick = () => openList();
 
@@ -2836,7 +2918,8 @@
   });
 
   // ---------------- Dusre ki profile dekhna ----------------
-  async function showUserCard(uid) {
+  function showUserCard(uid) { openUserProfile(uid); }
+  async function showUserCardModal(uid) {
     if (!uid) return;
     const card = $('userCard');
     if (current === 'viewer') { clearTimeout(vTimer); $('vAudio').pause(); }
@@ -2900,6 +2983,7 @@
     $('prOnline').checked = !data || data.show_online !== false;
     $('prPhoto').value = (data && data.photo_vis) || 'everyone';
     $('prBio').value = (data && data.bio_vis) || 'everyone';
+    try { const st = await sb.rpc('profile_stats', { target: myId() }); $('prPrivate').checked = !!(st.data && st.data.is_private); } catch (_) {}
   };
   async function savePrivacy() {
     const row = { user_id: myId(), show_online: $('prOnline').checked, photo_vis: $('prPhoto').value, bio_vis: $('prBio').value, updated_at: new Date().toISOString() };
@@ -2909,6 +2993,7 @@
   }
   ['prOnline', 'prPhoto', 'prBio'].forEach((id) => { $(id).onchange = savePrivacy; });
 
+  $('prPrivate').onchange = async () => { const { error } = await sb.rpc('set_account_private', { flag: $('prPrivate').checked }); $('prMsg').textContent = error ? 'Save nahi hua (social.sql chali hai?)' : '✓ Save ho gaya'; };
   $('goBlocked').onclick = async () => {
     show('setBlocked');
     const box = $('blList'); box.textContent = 'Loading…';
@@ -2962,6 +3047,265 @@
   $('convAvatar').onclick = () => { if (openConvObj && !openConvObj.is_group) showUserCard(openConvObj.other_user_id); };
   $('vAv').classList.add('tappable');
   $('vAv').onclick = () => { if (vGroup && vGroup.uid !== myId()) showUserCard(vGroup.uid); };
+
+  // ---------------- Social: profile, follow, posts, activity ----------------
+  const urlCache = new Map();
+  async function signMany(paths) {
+    const need = [...new Set(paths.filter((p) => p && !urlCache.has(p)))]; if (!need.length) return;
+    try { const { data } = await sb.storage.from('posts').createSignedUrls(need, 3600); (data || []).forEach((r) => { if (r.signedUrl && r.path) urlCache.set(r.path, r.signedUrl); }); } catch (_) {}
+  }
+  function timeAgo(ts) { const s = Math.max(1, (Date.now() - new Date(ts)) / 1000); if (s < 60) return 'abhi'; if (s < 3600) return Math.floor(s / 60) + ' min'; if (s < 86400) return Math.floor(s / 3600) + ' ghante'; return Math.floor(s / 86400) + ' din'; }
+  function mk(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  let navStack = [], upUid = null, upInfo = null, flUid = null, flKind = null;
+  function pushNav() {
+    const c = current;
+    if (c === 'uprof') navStack.push({ n: 'uprof', uid: upUid });
+    else if (c === 'flist') navStack.push({ n: 'flist', uid: flUid, kind: flKind });
+    else navStack.push({ n: ['viewer', 'loading', 'auth', 'compose'].includes(c) ? 'list' : c });
+  }
+  function socialBack() {
+    const e = navStack.pop() || { n: 'list' };
+    if (e.n === 'uprof') openUserProfile(e.uid, true);
+    else if (e.n === 'flist') openFollowList(e.uid, e.kind, true);
+    else if (e.n === 'feed') openFeed(true);
+    else if (e.n === 'activity') openActivity(true);
+    else if (e.n === 'callhist') openCallHistory();
+    else if (e.n === 'rewards') openRewards();
+    else if (e.n === 'conv' || e.n === 'groupinfo') show(e.n);
+    else openList();
+  }
+  ['upBack', 'flBack', 'acBack', 'npBack', 'pvBack'].forEach((id) => { $(id).onclick = socialBack; });
+
+  // ---- Follow button ----
+  function paintFollow(btn, rel, followsMe) {
+    btn.className = rel === 'none' ? 'main' : 'ghost';
+    btn.textContent = rel === 'accepted' ? '✓ Following' : rel === 'pending' ? '⏳ Requested' : (followsMe ? 'Follow back' : 'Follow');
+    btn.dataset.rel = rel;
+  }
+  async function doFollowToggle(uid, rel) {
+    if (rel === 'none') { const { data, error } = await sb.rpc('follow_user', { target: uid }); return error ? rel : data; }
+    if (rel === 'accepted' && !confirm('Unfollow karein?')) return rel;
+    const { error } = await sb.rpc('unfollow_user', { target: uid }); return error ? rel : 'none';
+  }
+
+  // ---- Kisi ki profile (Insta jaisi) ----
+  async function openUserProfile(uid, noPush) {
+    if (!uid) return;
+    if (current === 'viewer') { clearTimeout(vTimer); stopSong(); vGroup = null; }
+    if (!noPush) pushNav();
+    upUid = uid; upInfo = null; show('uprof');
+    const me = uid === myId();
+    $('upTitle').textContent = me ? 'Meri profile' : 'Profile';
+    $('upMore').classList.toggle('hidden', me);
+    $('upName').textContent = ''; $('upUser').textContent = ''; $('upBio').textContent = 'Loading…';
+    $('upN1').textContent = '-'; $('upN2').textContent = '-'; $('upN3').textContent = '-';
+    $('upGrid').textContent = ''; $('upPriv').classList.add('hidden'); $('upActs').textContent = '';
+    $('upAv').textContent = '?'; $('upAv').style.background = '#2A2A40';
+    const [st, pr] = await Promise.all([sb.rpc('profile_stats', { target: uid }), sb.from('profiles').select('id,name,username,bio,avatar_path').eq('id', uid).maybeSingle()]);
+    if (current !== 'uprof' || upUid !== uid) return;
+    const s = st.data, p = pr.data;
+    if (!s || !p) { $('upBio').textContent = 'Profile load nahi ho payi.'; return; }
+    upInfo = p; avatarMap[uid] = p.avatar_path || null; await refreshHidden([uid]);
+    if (current !== 'uprof' || upUid !== uid) return;
+    paintAvatar($('upAv'), p.name, uid);
+    $('upName').textContent = dn(p.name, uid) + (s.is_private ? ' 🔒' : '');
+    $('upUser').textContent = p.username ? '@' + p.username : '';
+    $('upBio').textContent = hiddenBio.has(uid) ? '🔒 Bio chhupa hua hai' : (p.bio || '');
+    $('upBio').classList.toggle('hidden', !$('upBio').textContent);
+    $('upN1').textContent = s.posts; $('upN2').textContent = s.followers; $('upN3').textContent = s.following;
+    const acts = $('upActs');
+    if (me) {
+      const b1 = mk('button', 'ghost', '✏️ Profile edit aur settings'); b1.type = 'button'; b1.onclick = () => openProfile(false, profile);
+      const b2 = mk('button', 'main', '＋ Post'); b2.type = 'button'; b2.onclick = () => openNewPost();
+      acts.append(b2, b1);
+    } else if (s.blocked) {
+      acts.appendChild(mk('p', 'hint', '🚫 Block ki wajah se ye profile available nahi hai.'));
+    } else {
+      const fb = mk('button', 'main'); fb.type = 'button'; paintFollow(fb, s.rel, s.follows_me);
+      fb.onclick = async () => { fb.disabled = true; await doFollowToggle(uid, fb.dataset.rel); openUserProfile(uid, true); };
+      const mb = mk('button', 'ghost', '💬 Message'); mb.type = 'button'; mb.onclick = () => startChat({ id: uid, name: p.name, username: p.username });
+      acts.append(fb, mb);
+    }
+    if (!s.can_view) { $('upPriv').classList.remove('hidden'); return; }
+    const { data: posts } = await sb.rpc('get_posts', { owner: uid });
+    if (current !== 'uprof' || upUid !== uid) return;
+    const list = posts || [];
+    await signMany(list.map((x) => x.media_path));
+    if (current !== 'uprof' || upUid !== uid) return;
+    if (!list.length) $('upGrid').appendChild(mk('p', 'hint', me ? 'Abhi koi post nahi. Pehli post daalo! 📸' : 'Abhi koi post nahi.'));
+    list.forEach((x) => {
+      const c = mk('div', 'gcell');
+      if (x.media_path && urlCache.get(x.media_path)) { const im = mk('img'); im.loading = 'lazy'; im.alt = ''; im.src = urlCache.get(x.media_path); c.appendChild(im); }
+      c.onclick = () => openPostView(x, p);
+      $('upGrid').appendChild(c);
+    });
+  }
+  $('upMore').onclick = () => { if (upUid) showUserCardModal(upUid); };
+  $('upN2b').onclick = () => openFollowList(upUid, 'followers');
+  $('upN3b').onclick = () => openFollowList(upUid, 'following');
+
+  // ---- Followers / Following list ----
+  async function openFollowList(uid, kind, noPush) {
+    if (!noPush) pushNav();
+    flUid = uid; flKind = kind; show('flist');
+    $('flTitle').textContent = kind === 'followers' ? 'Followers' : 'Following';
+    const box = $('flBox'); box.textContent = 'Loading…';
+    const { data, error } = await sb.rpc('follow_list', { target: uid, kind });
+    if (current !== 'flist') return;
+    box.textContent = '';
+    if (error) { box.appendChild(mk('p', 'hint', 'List load nahi hui.')); return; }
+    if (!data || !data.length) { box.appendChild(mk('p', 'hint', 'Yahan abhi koi nahi (ya account private hai).')); return; }
+    data.forEach((u) => box.appendChild(personRow(u, true)));
+  }
+  function personRow(u, withFollow) {
+    const row = mk('div', 'prow');
+    const av = mk('div', 'avatar'); avatarMap[u.id] = u.avatar_path || null; paintAvatar(av, u.name, u.id);
+    const t = mk('div', 'pt'); t.append(mk('b', null, dn(u.name, u.id)), mk('small', null, u.username ? '@' + u.username : ''));
+    row.append(av, t);
+    row.onclick = () => openUserProfile(u.id);
+    if (withFollow && u.rel !== 'self' && u.id !== myId()) {
+      const b = mk('button'); b.type = 'button'; b.style.padding = '8px 14px'; paintFollow(b, u.rel || 'none', false);
+      b.onclick = async (ev) => { ev.stopPropagation(); b.disabled = true; const r = await doFollowToggle(u.id, b.dataset.rel); paintFollow(b, r, false); b.disabled = false; };
+      row.appendChild(b);
+    }
+    return row;
+  }
+
+  // ---- Post card (feed + post viewer) ----
+  function renderPostCard(p, info, onGone) {
+    const card = mk('div', 'pcard');
+    const head = mk('div', 'phead');
+    const av = mk('div', 'avatar'); avatarMap[p.user_id] = info.avatar_path || null; paintAvatar(av, info.name, p.user_id);
+    const t = mk('div', 'pt'); t.append(mk('b', null, dn(info.name, p.user_id)), mk('small', null, timeAgo(p.created_at)));
+    head.append(av, t); head.onclick = () => openUserProfile(p.user_id);
+    if (p.user_id === myId()) {
+      const d = mk('button', 'pdel', '🗑️'); d.type = 'button';
+      d.onclick = async (ev) => {
+        ev.stopPropagation(); if (!confirm('Ye post delete karein?')) return;
+        const { error } = await sb.from('posts').delete().eq('id', p.id); if (error) { alert('Delete nahi hua.'); return; }
+        if (p.media_path) sb.storage.from('posts').remove([p.media_path]).then(() => {}, () => {});
+        card.remove(); if (onGone) onGone();
+      };
+      head.appendChild(d);
+    }
+    card.appendChild(head);
+    if (p.media_path) { const im = mk('img', 'pimg'); im.alt = 'Post'; im.loading = 'lazy'; const u = urlCache.get(p.media_path); if (u) im.src = u; card.appendChild(im); }
+    const act = mk('div', 'pact'); const lb = mk('button', 'plike'); lb.type = 'button'; const cnt = mk('span');
+    const paint = () => { lb.textContent = p.liked ? '❤️' : '🤍'; cnt.textContent = p.like_count + (Number(p.like_count) === 1 ? ' like' : ' likes'); };
+    paint();
+    lb.onclick = async () => {
+      p.liked = !p.liked; p.like_count = Number(p.like_count) + (p.liked ? 1 : -1); paint();
+      const r = p.liked ? await sb.rpc('like_post', { pid: p.id }) : await sb.rpc('unlike_post', { pid: p.id });
+      if (r.error) { p.liked = !p.liked; p.like_count = Number(p.like_count) + (p.liked ? 1 : -1); paint(); }
+    };
+    act.append(lb, cnt); card.appendChild(act);
+    if (p.caption) { const c = mk('div', 'pcap'); c.append(mk('b', null, dn(info.name, p.user_id) + ' '), document.createTextNode(p.caption)); card.appendChild(c); }
+    return card;
+  }
+  async function openPostView(p, info) {
+    pushNav(); show('postview');
+    const box = $('pvBody'); box.textContent = '';
+    await signMany([p.media_path]);
+    if (current !== 'postview') return;
+    box.appendChild(renderPostCard(p, info, () => socialBack()));
+  }
+
+  // ---- Feed ----
+  async function openFeed(keep) {
+    if (!keep) navStack = [];
+    show('feed');
+    const box = $('fList'); box.textContent = 'Loading…';
+    const { data, error } = await sb.rpc('get_feed', { lim: 30 });
+    if (current !== 'feed') return;
+    box.textContent = '';
+    if (error) { box.appendChild(mk('p', 'hint', 'Feed load nahi hua. SQL (social.sql) chali hai?')); return; }
+    const list = data || [];
+    if (!list.length) { box.appendChild(mk('p', 'hint', 'Feed khali hai. Upar se logo ko dhundo aur follow karo, ya apni pehli post daalo! 📸')); return; }
+    await signMany(list.map((x) => x.media_path));
+    if (current !== 'feed') return;
+    list.forEach((x) => box.appendChild(renderPostCard(x, { name: x.name, username: x.username, avatar_path: x.avatar_path })));
+  }
+  let fsTimer = null;
+  $('fSearch').oninput = () => {
+    clearTimeout(fsTimer);
+    fsTimer = setTimeout(async () => {
+      const q = $('fSearch').value.trim().replace(/[%,()*_\\]/g, ''); const box = $('fResults'); box.textContent = '';
+      if (q.length < 2) return;
+      const { data } = await sb.from('profiles').select('id,name,username,avatar_path').or('username.ilike.%' + q + '%,name.ilike.%' + q + '%').neq('id', myId()).limit(15);
+      box.textContent = '';
+      if (!data || !data.length) { box.appendChild(mk('p', 'hint', 'Koi nahi mila.')); return; }
+      data.forEach((u) => box.appendChild(personRow(u, false)));
+    }, 350);
+  };
+  $('fNew').onclick = () => openNewPost();
+
+  // ---- Nayi post ----
+  let npFile = null;
+  function openNewPost() {
+    pushNav(); show('newpost'); npFile = null; $('npImg').classList.add('hidden'); $('npCap').value = ''; $('npErr').textContent = ''; $('npInput').value = '';
+    $('npPost').disabled = false;
+  }
+  $('npPick').onclick = () => $('npInput').click();
+  $('npImg').onclick = () => $('npInput').click();
+  $('npInput').addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    if (!/^image\//.test(f.type)) { $('npErr').textContent = 'Sirf photo chuno.'; return; }
+    npFile = f; $('npErr').textContent = ''; $('npImg').src = URL.createObjectURL(f); $('npImg').classList.remove('hidden');
+  });
+  $('npPost').onclick = async () => {
+    if (!npFile) { $('npErr').textContent = 'Pehle photo chuno.'; return; }
+    $('npPost').disabled = true; $('npErr').textContent = 'Upload ho raha hai…';
+    try {
+      const me = myId(); const blob = await compress(npFile);
+      const path = me + '/' + crypto.randomUUID() + '.jpg';
+      const up = await sb.storage.from('posts').upload(path, blob, { contentType: 'image/jpeg' }); if (up.error) throw up.error;
+      const ins = await sb.from('posts').insert({ user_id: me, kind: 'image', media_path: path, caption: $('npCap').value.trim().slice(0, 300) });
+      if (ins.error) { sb.storage.from('posts').remove([path]).then(() => {}, () => {}); throw ins.error; }
+      navStack = []; openUserProfile(me, true);
+    } catch (e) { $('npErr').textContent = 'Post nahi hui: ' + (e.message || e); $('npPost').disabled = false; }
+  };
+
+  // ---- Activity (bell) ----
+  async function refreshBell() {
+    try {
+      const { data } = await sb.rpc('activity_count'); const n = Number(data) || 0;
+      const d = $('bellDot'); d.textContent = n > 9 ? '9+' : String(n); d.classList.toggle('hidden', n < 1);
+    } catch (_) {}
+  }
+  async function openActivity(keep) {
+    if (!keep) { navStack = []; pushNav(); }
+    show('activity');
+    const box = $('acBox'); box.textContent = 'Loading…';
+    const { data, error } = await sb.rpc('get_activity');
+    if (current !== 'activity') return;
+    box.textContent = '';
+    if (error) { box.appendChild(mk('p', 'hint', 'Activity load nahi hui. SQL (social.sql) chali hai?')); return; }
+    const list = data || [];
+    if (!list.length) { box.appendChild(mk('p', 'hint', 'Abhi koi activity nahi. 🙂')); }
+    await signMany(list.map((x) => x.media_path));
+    if (current !== 'activity') return;
+    const reqs = list.filter((x) => x.kind === 'request');
+    if (reqs.length) box.appendChild(mk('h3', 'achead', 'Follow requests (' + reqs.length + ')'));
+    reqs.forEach((x) => {
+      const row = personRow({ id: x.actor_id, name: x.name, username: x.username, avatar_path: x.avatar_path }, false); row.classList.add('new');
+      const ok = mk('button', 'main', 'Accept'), no = mk('button', 'ghost', 'Delete'); ok.type = no.type = 'button'; ok.style.padding = no.style.padding = '8px 12px';
+      const resp = async (ev, accept) => { ev.stopPropagation(); ok.disabled = no.disabled = true; const r = await sb.rpc('respond_follow', { p_follower: x.actor_id, p_accept: accept }); if (!r.error) { row.remove(); refreshBell(); } else ok.disabled = no.disabled = false; };
+      ok.onclick = (ev) => resp(ev, true); no.onclick = (ev) => resp(ev, false); row.append(ok, no); box.appendChild(row);
+    });
+    const rest = list.filter((x) => x.kind !== 'request');
+    if (rest.length) box.appendChild(mk('h3', 'achead', 'Pichli activity'));
+    rest.forEach((x) => {
+      const row = personRow({ id: x.actor_id, name: x.name, username: x.username, avatar_path: x.avatar_path }, false);
+      if (x.is_new) row.classList.add('new');
+      const t = row.querySelector('.pt'); t.querySelector('small').textContent = (x.kind === 'like' ? 'ne tumhari post like ki' : 'ne tumhe follow kiya') + ' · ' + timeAgo(x.created_at);
+      if (x.kind === 'follow' && x.rel === 'none') { const b = mk('button'); b.type = 'button'; b.style.padding = '8px 12px'; paintFollow(b, 'none', true); b.onclick = async (ev) => { ev.stopPropagation(); b.disabled = true; const r = await doFollowToggle(x.actor_id, 'none'); paintFollow(b, r, false); b.disabled = false; }; row.appendChild(b); }
+      if (x.kind === 'like' && x.media_path && urlCache.get(x.media_path)) { const im = mk('img', 'athumb'); im.alt = ''; im.src = urlCache.get(x.media_path); row.appendChild(im); }
+      box.appendChild(row);
+    });
+    sb.rpc('mark_activity_seen').then(() => refreshBell(), () => {});
+  }
+  $('bellBtn').onclick = () => openActivity();
+  $('meBtn').onclick = () => { navStack = []; openUserProfile(myId(), true); };
 
   // ---------------- Notifications + ringtone ----------------
   let incomingCallId = null;
