@@ -235,6 +235,11 @@
   #bellDot { position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 4px; border-radius:9px; background:#FF2D55; color:#fff; font-size:11px; font-style:normal; display:flex; align-items:center; justify-content:center; font-weight:700; }
   #bellDot.hidden { display:none !important; }
   #npImg { width:100%; max-height:50vh; object-fit:contain; border-radius:14px; background:#11111B; }
+  .lbrow { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:14px; background:var(--card); margin-bottom:8px; cursor:pointer; }
+  .lbrow.me { outline:2px solid var(--lime); }
+  .lbrow .lbr { width:34px; text-align:center; font-weight:800; font-size:18px; } .lbrow .lbn { flex:1; min-width:0; } .lbrow .lbn b { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .lbrow .lbn small { color:var(--muted); }
+  .lbrow .lbp { font-weight:800; color:var(--lime); white-space:nowrap; }
+  #lboard .pad { padding:6px 16px 90px; }
   .setrow { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; padding:14px 16px; border:0; border-radius:16px; background:var(--card); color:var(--text); font:inherit; font-weight:600; text-align:left; cursor:pointer; }
   .setrow small { color:var(--muted); font-weight:500; }
   .setpage { display:flex; flex-direction:column; gap:12px; }
@@ -668,6 +673,7 @@
       <button class="main" id="rwBox" type="button">🎁 Surprise box</button>
       <button class="main" id="rwInvite" type="button" style="background:#C8FF3D;color:#0B0B12">📤 Dost ko invite karo</button>
       <button class="ghost" id="rwCopy" type="button">🔗 Link copy karo</button>
+      <button class="main" id="rwLb" type="button" style="background:#6C47FF;color:#fff">🏆 Leaderboard</button>
       <div class="rw-card"><b>Points kaise milte hain?</b>
         <ul>
           <li>🔗 Tumhare link se app join karne par naye dost ko <b>10 points</b>, aur tumhe <b>20 points</b></li>
@@ -864,6 +870,15 @@
     </div>
   </div>
 
+  <div id="lboard" class="hidden setpage">
+    <div class="topbar"><button class="back" id="lbBack2" type="button" aria-label="Back">&#8592;</button><div class="title"><b>Leaderboard 🏆</b><small>Top log</small></div></div>
+    <div class="pad">
+      <div class="seg" id="lbTabs"><button type="button" data-lb="week" class="on">Is hafte</button><button type="button" data-lb="all">Sab time</button><button type="button" data-lb="streak">🔥 Streak</button></div>
+      <div id="lbList" style="margin-top:12px"></div>
+      <p class="hint">Points sirf asli chat aur invite se milte hain (server hi ginta hai). Naam chhupana ho to Profile → Privacy me band kar do.</p>
+    </div>
+  </div>
+
   <div id="setPrivacy" class="hidden setpage">
     <div class="topbar"><button class="back" data-setback type="button" aria-label="Back">&#8592;</button><div class="title"><b>Privacy</b></div></div>
     <div class="pad">
@@ -871,6 +886,7 @@
         <p class="hint" style="margin:0">Band karoge to doosre tumhe online nahi dekh payenge.</p></div>
       <div class="setbox"><label class="tg" style="margin:0;color:var(--text);font-size:15px">🔒 Private account<input type="checkbox" id="prPrivate"></label>
         <p class="hint" style="margin:0">Private me log pehle follow request bhejte hain, tumhare accept karne par hi posts dekh sakte hain.</p></div>
+      <div class="setbox"><label class="tg" style="margin:0;color:var(--text);font-size:15px">🏆 Leaderboard me mera naam dikhao<input type="checkbox" id="prLb"></label></div>
       <div class="setbox"><label for="prPhoto" style="margin:0">📷 Meri profile photo kaun dekh sake</label>
         <select id="prPhoto"><option value="everyone">Sab log</option><option value="chats">Sirf jinse meri chat hai</option><option value="nobody">Koi nahi</option></select></div>
       <div class="setbox"><label for="prBio" style="margin:0">📝 Mera bio kaun dekh sake</label>
@@ -1207,7 +1223,7 @@
   }
   document.addEventListener('visibilitychange', syncBeast);
   const hiddenPhoto = new Set(), hiddenBio = new Set(); let blockedSet = new Set();
-  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'callhist', 'rewards', 'profile', 'safety', 'feed', 'uprof', 'flist', 'activity', 'newpost', 'postview', 'setPrivacy', 'setBlocked', 'setAccount', 'compose', 'viewer'];
+  const screens = ['loading', 'auth', 'list', 'conv', 'newchat', 'newgroup', 'groupinfo', 'callhist', 'rewards', 'profile', 'lboard', 'safety', 'feed', 'uprof', 'flist', 'activity', 'newpost', 'postview', 'setPrivacy', 'setBlocked', 'setAccount', 'compose', 'viewer'];
   let current = 'loading';
   function show(name) {
     const prevScreen = current;
@@ -2626,6 +2642,33 @@
   }
   function openRewards() { show('rewards'); syncPoints(); }
   $('rwBack').onclick = () => openList();
+  // ---- Leaderboard ----
+  let lbMode = 'week';
+  async function openLeaderboard() {
+    show('lboard');
+    document.querySelectorAll('#lbTabs button').forEach((b) => b.classList.toggle('on', b.dataset.lb === lbMode));
+    const box = $('lbList'); box.textContent = 'Loading…';
+    const { data, error } = lbMode === 'streak' ? await sb.rpc('streak_board', { lim: 20 }) : await sb.rpc('leaderboard', { period: lbMode, lim: 20 });
+    if (current !== 'lboard') return;
+    box.textContent = '';
+    if (error) { box.appendChild(mk('p', 'hint', 'Leaderboard load nahi hua. SQL (leaderboard.sql) chali hai?')); return; }
+    const list = data || [];
+    if (!list.length) { box.appendChild(mk('p', 'hint', lbMode === 'streak' ? 'Abhi kisi ki streak nahi. Dost se roz baat karo! 🔥' : 'Abhi kisi ke points nahi. Chat karo aur invite karo! 🎁')); return; }
+    const medal = (r) => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : '#' + r;
+    list.forEach((x) => {
+      const row = mk('div', 'lbrow' + (x.is_me ? ' me' : ''));
+      const av = mk('div', 'avatar'); avatarMap[x.user_id] = x.avatar_path || null; paintAvatar(av, x.name, x.user_id);
+      if (x.badge) badgeMap.set(x.user_id, x.badge);
+      const n = mk('div', 'lbn'); n.append(mk('b', null, dn(x.name, x.user_id) + (x.is_me ? ' (tum)' : '')), mk('small', null, x.username ? '@' + x.username : ''));
+      const pt = lbMode === 'streak' ? '🔥 ' + Number(x.points) + ' din' : (Math.round(Number(x.points) * 10) / 10) + ' pts';
+      row.append(mk('div', 'lbr', medal(Number(x.rank))), av, n, mk('div', 'lbp', pt));
+      row.onclick = () => openUserProfile(x.user_id);
+      box.appendChild(row);
+    });
+  }
+  document.querySelectorAll('#lbTabs button').forEach((b) => b.addEventListener('click', () => { lbMode = b.dataset.lb; openLeaderboard(); }));
+  $('rwLb').onclick = openLeaderboard;
+  $('lbBack2').onclick = () => openRewards();
   $('rwInvite').onclick = shareInvite;
   $('rwCopy').onclick = copyInvite;
   $('rwBox').onclick = openSurprise;
@@ -3012,19 +3055,20 @@
   document.querySelectorAll('[data-setback]').forEach((b) => { b.onclick = backToProfile; });
   $('goPrivacy').onclick = async () => {
     show('setPrivacy'); $('prMsg').textContent = '';
-    const { data } = await sb.from('privacy_settings').select('show_online,photo_vis,bio_vis').eq('user_id', myId()).maybeSingle();
+    const { data } = await sb.from('privacy_settings').select('show_online,photo_vis,bio_vis,show_leaderboard').eq('user_id', myId()).maybeSingle();
     $('prOnline').checked = !data || data.show_online !== false;
+    $('prLb').checked = !data || data.show_leaderboard !== false;
     $('prPhoto').value = (data && data.photo_vis) || 'everyone';
     $('prBio').value = (data && data.bio_vis) || 'everyone';
     try { const st = await sb.rpc('profile_stats', { target: myId() }); $('prPrivate').checked = !!(st.data && st.data.is_private); } catch (_) {}
   };
   async function savePrivacy() {
-    const row = { user_id: myId(), show_online: $('prOnline').checked, photo_vis: $('prPhoto').value, bio_vis: $('prBio').value, updated_at: new Date().toISOString() };
+    const row = { user_id: myId(), show_online: $('prOnline').checked, show_leaderboard: $('prLb').checked, photo_vis: $('prPhoto').value, bio_vis: $('prBio').value, updated_at: new Date().toISOString() };
     const { error } = await sb.from('privacy_settings').upsert(row, { onConflict: 'user_id' });
     $('prMsg').textContent = error ? 'Save nahi hua, dobara try karo.' : '✓ Save ho gaya';
     if (!error && socket) socket.emit('privacy:online', { show: row.show_online });
   }
-  ['prOnline', 'prPhoto', 'prBio'].forEach((id) => { $(id).onchange = savePrivacy; });
+  ['prOnline', 'prLb', 'prPhoto', 'prBio'].forEach((id) => { $(id).onchange = savePrivacy; });
 
   $('prPrivate').onchange = async () => { const { error } = await sb.rpc('set_account_private', { flag: $('prPrivate').checked }); $('prMsg').textContent = error ? 'Save nahi hua (social.sql chali hai?)' : '✓ Save ho gaya'; };
   $('goBlocked').onclick = async () => {
