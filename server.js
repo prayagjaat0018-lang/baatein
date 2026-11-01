@@ -78,6 +78,7 @@ async function sendPush(row, payload, token, forCall) {
   }
 }
 function previewOf(text, mime, name) {
+  if (/^\[\[sticker:s\d{3}\]\]$/.test(text || '')) return '🧩 Sticker';
   if (text) return text.slice(0, 140);
   if (mime && mime.startsWith('image/')) return '📷 Photo';
   if (mime && mime.startsWith('audio/')) return '🎤 Voice message';
