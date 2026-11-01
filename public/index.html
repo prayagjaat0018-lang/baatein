@@ -240,6 +240,15 @@
   .lbrow .lbr { width:34px; text-align:center; font-weight:800; font-size:18px; } .lbrow .lbn { flex:1; min-width:0; } .lbrow .lbn b { display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .lbrow .lbn small { color:var(--muted); }
   .lbrow .lbp { font-weight:800; color:var(--lime); white-space:nowrap; }
   #lboard .pad { padding:6px 16px 90px; }
+  .msg.sticker, .msg.mine.sticker { background:transparent !important; box-shadow:none; padding:2px 4px 4px; border-radius:12px; }
+  .stickerImg { width:150px; height:150px; display:block; object-fit:contain; }
+  #stickerSheet { position:fixed; left:0; right:0; bottom:0; z-index:1000; max-width:480px; margin:0 auto; height:48vh; background:#171727; border-radius:22px 22px 0 0; display:flex; flex-direction:column; box-shadow:0 -18px 40px rgba(0,0,0,.5); }
+  #stickerSheet.hidden { display:none !important; }
+  #stickerSheet .sthead { display:flex; gap:8px; align-items:center; padding:12px 12px 6px; } #stickerSheet .sthead input { flex:1; }
+  #stickerSheet .sthead button { border:0; background:rgba(255,255,255,.1); color:#fff; width:38px; height:38px; border-radius:50%; font-size:16px; cursor:pointer; }
+  #stGrid { flex:1; overflow-y:auto; display:grid; grid-template-columns:repeat(4,1fr); gap:6px; padding:6px 10px 18px; align-content:start; }
+  #stGrid img { width:100%; aspect-ratio:1; object-fit:contain; cursor:pointer; border-radius:10px; } #stGrid img:active { background:rgba(255,255,255,.1); }
+  #stGrid h4 { grid-column:1/-1; margin:6px 2px 0; font-size:12px; color:var(--muted); font-weight:600; }
   .setrow { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; padding:14px 16px; border:0; border-radius:16px; background:var(--card); color:var(--text); font:inherit; font-weight:600; text-align:left; cursor:pointer; }
   .setrow small { color:var(--muted); font-weight:500; }
   .setpage { display:flex; flex-direction:column; gap:12px; }
@@ -652,6 +661,7 @@
       <input id="fileInput" type="file" accept="image/*,video/*,.pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip" hidden>
       <button class="attachBtn" id="attachBtn" type="button" title="Photo, video or document" aria-label="Attach file">＋</button>
       <button class="attachBtn" id="voiceBtn" type="button" title="Record voice note" aria-label="Record voice note">🎙</button>
+      <button class="attachBtn" id="stBtn" type="button" title="Stickers" aria-label="Stickers">🧩</button>
       <input id="msgInput" type="text" maxlength="500" placeholder="Say something..." aria-label="Message">
       <button type="submit" aria-label="Send">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0B0B12" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
@@ -1025,6 +1035,11 @@
     </div>
     <button type="button" class="ghost" id="ucClose">Close</button>
   </div>
+</div>
+
+<div id="stickerSheet" class="hidden" role="dialog" aria-label="Stickers">
+  <div class="sthead"><input id="stQ" type="search" placeholder="Sticker dhundo (jaise: party, gussa, neend)" autocomplete="off"><button type="button" id="stClose" aria-label="Close">✕</button></div>
+  <div id="stGrid"></div>
 </div>
 
 <div id="callOverlay" class="hidden" role="dialog" aria-modal="true" aria-label="Baatein call">
@@ -1583,7 +1598,7 @@
       top.appendChild(nm); top.appendChild(tm);
       const lastRow = document.createElement('div');
       lastRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px';
-      const last = document.createElement('div'); last.className = 'last'; last.textContent = c.last_text;
+      const last = document.createElement('div'); last.className = 'last'; last.textContent = prettyText(c.last_text);
       lastRow.appendChild(last);
       const flags = chatFlags(c.id);
       if (flags.pinned || flags.muted) { const ic = document.createElement('span'); ic.className='quality-icons'; ic.textContent=(flags.pinned?'📌 ':'')+(flags.muted?'🔕':''); nm.appendChild(ic); }
@@ -1734,8 +1749,10 @@
     if (m.reply_to) {
       const quote = document.createElement('div'); quote.className = 'replyQuote'; const original = document.querySelector('[data-message-id="' + String(m.reply_to) + '"] .text'); quote.textContent = '↳ ' + (original ? original.textContent.slice(0, 100) : ('Reply to message #' + m.reply_to)); box.appendChild(quote);
     }
-    if (m.attachment_path) renderAttachment(box, m);
-    if (m.text) { const text = document.createElement('span'); text.className = 'text'; text.textContent = m.text; box.appendChild(text); }
+    const stm = !m.attachment_path && m.text ? STK_RE.exec(m.text) : null;
+    if (stm) { box.classList.add('sticker'); const sim = document.createElement('img'); sim.className = 'stickerImg'; sim.alt = 'Sticker'; sim.src = '/stickers/' + stm[1] + '.png'; box.appendChild(sim); }
+    else if (m.attachment_path) renderAttachment(box, m);
+    if (m.text && !stm) { const text = document.createElement('span'); text.className = 'text'; text.textContent = m.text; box.appendChild(text); }
     const time = document.createElement('span'); time.className = 'time';
     time.textContent = new Date(m.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     if (m.edited_at) { const ed=document.createElement('span'); ed.className='edited'; ed.textContent='edited'; time.appendChild(ed); }
@@ -1825,6 +1842,31 @@
   function scrollDown() { $('messages').scrollTop = $('messages').scrollHeight; }
 
   $('convBack').onclick = () => openList();
+
+  // ---- Stickers ----
+  const STK_RE = /^\[\[sticker:(s\d{3})\]\]$/;
+  function prettyText(t) { return STK_RE.test(String(t || '')) ? '🧩 Sticker' : String(t || ''); }
+  let STK = null;
+  async function loadStickers() { if (STK) return STK; try { const r = await fetch('/stickers/index.json'); STK = await r.json(); } catch (_) { STK = []; } return STK; }
+  const stRecent = () => { try { return JSON.parse(localStorage.getItem('baatein-stk-recent') || '[]').filter((x) => /^s\d{3}$/.test(x)).slice(0, 8); } catch (_) { return []; } };
+  async function paintStickers() {
+    const all = await loadStickers(); const q = $('stQ').value.trim().toLowerCase(); const g = $('stGrid'); g.textContent = '';
+    const add = (id, t) => { const im = document.createElement('img'); im.loading = 'lazy'; im.alt = t || 'Sticker'; im.src = '/stickers/' + id + '.png'; im.onclick = () => sendSticker(id); g.appendChild(im); };
+    if (!q) { const rec = stRecent(); if (rec.length) { g.appendChild(mk('h4', null, 'Recent')); rec.forEach((id) => add(id)); g.appendChild(mk('h4', null, 'Sab stickers')); } }
+    let list = all; if (q) list = all.filter((x) => x.t.toLowerCase().includes(q));
+    if (!list.length) { g.appendChild(mk('h4', null, 'Kuch nahi mila. Doosra shabd try karo.')); return; }
+    list.forEach((x) => add(x.f.replace('.png', ''), x.t));
+  }
+  $('stBtn').onclick = () => { if (!openConvObj) return; $('stQ').value = ''; $('stickerSheet').classList.remove('hidden'); paintStickers(); };
+  $('stClose').onclick = () => $('stickerSheet').classList.add('hidden');
+  $('stQ').oninput = () => paintStickers();
+  async function sendSticker(id) {
+    if (!/^s\d{3}$/.test(id) || !socket || !openConvObj) return;
+    const { data } = await sb.auth.getSession();
+    socket.emit('message', { conversation_id: openConvObj.id, text: '[[sticker:' + id + ']]', token: data.session && data.session.access_token });
+    try { const r = [id].concat(stRecent().filter((x) => x !== id)).slice(0, 8); localStorage.setItem('baatein-stk-recent', JSON.stringify(r)); } catch (_) {}
+    $('stickerSheet').classList.add('hidden');
+  }
 
   $('send').addEventListener('submit', async (e) => {
     e.preventDefault();
