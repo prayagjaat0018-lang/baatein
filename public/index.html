@@ -249,6 +249,12 @@
   #stGrid { flex:1; overflow-y:auto; display:grid; grid-template-columns:repeat(4,1fr); gap:6px; padding:6px 10px 18px; align-content:start; }
   #stGrid img { width:100%; aspect-ratio:1; object-fit:contain; cursor:pointer; border-radius:10px; } #stGrid img:active { background:rgba(255,255,255,.1); }
   #stGrid h4 { grid-column:1/-1; margin:6px 2px 0; font-size:12px; color:var(--muted); font-weight:600; }
+  #vReply { position:absolute; left:0; right:0; bottom:0; z-index:3; padding:10px 12px 18px 12px; background:linear-gradient(transparent, rgba(0,0,0,.7)); display:flex; flex-direction:column; gap:8px; }
+  #vReply.hidden { display:none !important; }
+  #vReply .vq { display:flex; gap:6px; justify-content:center; padding-right:64px; } #vReply .vq button { border:0; background:rgba(255,255,255,.16); border-radius:20px; font-size:20px; padding:4px 10px; cursor:pointer; }
+  #vReply .vr { display:flex; gap:8px; padding-right:64px; } #vReply .vr input { flex:1; border-radius:24px; background:rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.3); padding:12px 16px; }
+  #vReply .vr input::placeholder { color:rgba(255,255,255,.7); }
+  #vReply .vr button { border:0; border-radius:24px; padding:0 16px; background:var(--lime); color:#0B0B12; font-weight:700; cursor:pointer; }
   .setrow { display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%; padding:14px 16px; border:0; border-radius:16px; background:var(--card); color:var(--text); font:inherit; font-weight:600; text-align:left; cursor:pointer; }
   .setrow small { color:var(--muted); font-weight:500; }
   .setpage { display:flex; flex-direction:column; gap:12px; }
@@ -826,6 +832,10 @@
     </div>
     <div id="vSong" class="hidden"><span id="vSongTxt"></span></div>
     <button id="vLike" type="button" class="hidden" aria-label="Like">🤍</button>
+    <div id="vReply" class="hidden">
+      <div class="vq"><button type="button" data-qe="❤️">❤️</button><button type="button" data-qe="😂">😂</button><button type="button" data-qe="😮">😮</button><button type="button" data-qe="😢">😢</button><button type="button" data-qe="🔥">🔥</button><button type="button" data-qe="👏">👏</button></div>
+      <div class="vr"><input id="vRIn" type="text" maxlength="400" placeholder="Reply karo…" autocomplete="off"><button type="button" id="vRBtn">Bhejo</button></div>
+    </div>
     <div id="vFoot" class="hidden">
       <button id="vSeen" type="button">Seen by 0</button>
       <button id="vDel" type="button">Delete</button>
@@ -2262,6 +2272,7 @@
 
     $('vFoot').classList.toggle('hidden', !mine);
     $('vLike').classList.toggle('hidden', mine);
+    $('vReply').classList.toggle('hidden', mine); $('vRIn').value = ''; $('vRIn').placeholder = 'Reply karo…';
     if (!mine) { $('vLike').textContent = s._liked ? '❤️' : '🤍'; if (s._liked === undefined) { sb.from('status_likes').select('user_id').eq('status_id', s.id).eq('user_id', myId()).maybeSingle().then((r) => { s._liked = !!(r && r.data); if (vGroup && vGroup.items[vIdx] === s) $('vLike').textContent = s._liked ? '❤️' : '🤍'; }, () => {}); } }
     if (mine) {
       const { data } = await sb.from('status_views').select('viewer_id, profiles(name,username)').eq('status_id', s.id);
@@ -2302,6 +2313,35 @@
     if (e.clientX - r.left < r.width / 3) prevStatus(); else nextStatus();
   });
   $('vClose').onclick = closeViewer;
+  // ---- Status par reply ----
+  function statusSnippet(s) { return s.kind === 'image' ? (s.text ? '📷 ' + s.text : '📷 Photo') : (s.text || 'Status'); }
+  function resumeStatus() {
+    const s = vGroup && vGroup.items[vIdx]; if (!s || current !== 'viewer') return;
+    clearTimeout(vTimer); vTimer = setTimeout(nextStatus, statusMs(s));
+    if (s.audio_path || s.song_url) $('vAudio').play().catch(() => {});
+  }
+  $('vRIn').addEventListener('focus', () => { clearTimeout(vTimer); $('vAudio').pause(); });
+  $('vRIn').addEventListener('blur', () => { setTimeout(() => { if (document.activeElement !== $('vRIn') && !$('vRIn').value.trim()) resumeStatus(); }, 150); });
+  async function sendStatusReply(reply) {
+    const s = vGroup && vGroup.items[vIdx]; reply = String(reply || '').trim().slice(0, 400);
+    if (!s || !reply || s.user_id === myId() || !socket) return;
+    const snip = statusSnippet(s).replace(/\s+/g, ' ').slice(0, 40);
+    const text = '↩️ Status ("' + snip + '"): ' + reply;
+    $('vRBtn').disabled = true;
+    try {
+      const { data: cid, error } = await sb.rpc('start_dm', { other: s.user_id });
+      if (error || !cid) throw error || new Error('chat');
+      const { data } = await sb.auth.getSession();
+      socket.emit('message', { conversation_id: cid, text: text.slice(0, 500), token: data.session && data.session.access_token });
+      $('vRIn').value = ''; $('vRIn').blur(); $('vRIn').placeholder = 'Reply bhej diya ✓';
+      setTimeout(() => { loadList().catch(() => {}); }, 800);
+      resumeStatus();
+    } catch (_) { $('vRIn').placeholder = 'Reply nahi gaya, dobara try karo'; }
+    $('vRBtn').disabled = false;
+  }
+  $('vRBtn').onclick = () => sendStatusReply($('vRIn').value);
+  $('vRIn').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); sendStatusReply($('vRIn').value); } });
+  document.querySelectorAll('#vReply [data-qe]').forEach((b) => b.addEventListener('click', () => sendStatusReply(b.dataset.qe)));
   $('vLike').onclick = async () => {
     const s = vGroup && vGroup.items[vIdx]; if (!s || s.user_id === myId()) return;
     const want = !s._liked; s._liked = want; $('vLike').textContent = want ? '❤️' : '🤍';
